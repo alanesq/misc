@@ -28,11 +28,11 @@ const bool serialDebug = 1;
 //            --------------------------------------------------------------------
 
 
-// colour palette for candles to use
+// colour palette for candles to use 
   DEFINE_GRADIENT_PALETTE( heatmap_gp ) {
-      0,    80, 80, 0,
-      128,  245, 200, 2,
-      255,  255, 255, 8 };  
+      0,   255, 154, 0,
+      128,  255, 206, 0,
+      255,  255, 232, 8  };  
   CRGBPalette16 candlePal = heatmap_gp;
 
 
@@ -51,13 +51,13 @@ class candle {
 
     // settings
       const int randomDelayMin = 5;        // min delay between led changes
-      const int randomDelayMax = 100;      // max delay between led changes
-      const int colourChange = 16;         // max size of standard colour change steps
-      const int randomOff = 150;           // probability of led going off for a longer time
-      const int offTime = 120;             // time to stay off
+      const int randomDelayMax = 60;       // max delay between led changes
+      const int colourChange = 6;          // max size of standard colour change steps
+      const int randomOff = 30;            // probability of led going off for a longer time
+      const int offTime = 60;              // time to stay off
       const int randomNoChange = 200;      // probability of led not changing for a while
-      const int noChangeTime = 400;        // time to not change
-      const int randomJump = 50;           // probability of sudden jump in brightness
+      const int noChangeTime = 300;        // time to not change
+      const int randomJump = 30;           // probability of sudden jump in brightness
 
   
     CRGB* oLEDarray;               // led data location
@@ -70,7 +70,8 @@ class candle {
       int noCandles = oColour.size();
       FastLED.clear(false); 
       for(int i=0; i<noCandles; i++) {
-        oLEDarray[oPosition[i]] = ColorFromPalette(candlePal, oColour[i]);     
+        if (oColour[i] == 0) oLEDarray[oPosition[i]] = 0;   // black
+        else oLEDarray[oPosition[i]] = ColorFromPalette(candlePal, oColour[i]);     
       }
       FastLED.show(g_Brightness);
     }
@@ -125,8 +126,8 @@ class candle {
           oDelay[i] = random(randomDelayMin, randomDelayMax);       // set a delay until next change
           // randomly off for a longer time
             if (random(randomOff) == 1) {
-              oDelay[i] = offTime;  
-              oColour[i] = CRGB(0, 0, 0);
+              oDelay[i] = random(offTime);  
+              oColour[i] = 0;
             }
           // randomly no change for a longer time
             if (random(randomNoChange) == 1) {
@@ -143,15 +144,15 @@ class candle {
       for(int i=0; i<NUM_NEOPIXELS; i++) 
         oLEDarray[i] = CRGB(255, 0, 0);
       FastLED.show(g_Brightness);
-      delay(2000);
+      delay(1000);
       for(int i=0; i<NUM_NEOPIXELS; i++) 
         oLEDarray[i] = CRGB(0, 255, 0);
       FastLED.show(g_Brightness);
-      delay(2000);
+      delay(1000);
       for(int i=0; i<NUM_NEOPIXELS; i++) 
         oLEDarray[i] = CRGB(0, 0, 255);
       FastLED.show(g_Brightness);
-      delay(2000);            
+      delay(1000);            
       FastLED.clear(true);   // clear all leds
     }
 }; 
@@ -180,8 +181,8 @@ void setup() {
     candles.colourShow();
 
   // create a couple of candles
-    candles.addone(0);  
-    candles.addone(17);  
+    candles.addone(1);  
+    candles.addone(8);  
 
 //// set all available neopixels as a candle
 //  for (int i=0; i<NUM_NEOPIXELS; i++) 
