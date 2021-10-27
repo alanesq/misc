@@ -1,5 +1,5 @@
 //
-//    neopixel canle effect - 26oct21
+//    neopixel canle effect - 27oct21
 //
 
 const bool serialDebug = 1;
@@ -42,22 +42,20 @@ CRGB g_LEDs[NUM_NEOPIXELS] = {0};             // Frame buffer for FastLED
 // ----------------------------------------------------------------
 //                             -candles
 // ---------------------------------------------------------------- 
-// produce candle effect on individual neopixels
-//  vector info: https://www.codeguru.com/cplusplus/c-tutorial-a-beginners-guide-to-stdvector-part-1/
+// produce a candle effect on individual neopixels
 
 class candle {
   
   private:
 
     // settings
-      const int randomDelayMin = 5;        // min delay between led changes
-      const int randomDelayMax = 60;       // max delay between led changes
-      const int colourChange = 6;          // max size of standard colour change steps
-      const int randomOff = 30;            // probability of led going off for a longer time
-      const int offTime = 60;              // time to stay off
-      const int randomNoChange = 200;      // probability of led not changing for a while
-      const int noChangeTime = 300;        // time to not change
-      const int randomJump = 30;           // probability of sudden jump in brightness
+      const int randomDelayMin = 50;       // min delay between led changes
+      const int randomDelayMax = 150;      // max delay between led changes
+      const int randomJump = 60;           // probability of a sudden random change
+      const int colourChange = 10;         // max size of standard colour change step
+      const int randomOff = 30;            // probability of blinking
+      const int offTime = 40;              // max time to stay off when blinking
+      const int blinkFadeRate = 4;         // how fast to dim when blinking
 
   
     CRGB* oLEDarray;               // led data location
@@ -66,17 +64,23 @@ class candle {
     std::vector<uint32_t> oDelay;  // delay until next colour change allowed
     std::vector<uint32_t> oTime;   // time last colour change occured
 
-    void show() {       // display the candles on neopixels
+    void show() {       // display the candles
       int noCandles = oColour.size();
       FastLED.clear(false); 
       for(int i=0; i<noCandles; i++) {
-        if (oColour[i] == 0) oLEDarray[oPosition[i]] = 0;   // black
+        if (oColour[i] == 0) oLEDarray[oPosition[i]].fadeToBlackBy(blinkFadeRate);    // if blinking
         else oLEDarray[oPosition[i]] = ColorFromPalette(candlePal, oColour[i]);     
       }
       FastLED.show(g_Brightness);
     }
 
-        
+    void setall(CRGB LEDcol) {      // set all available LEDS to suplied colour
+      FastLED.clear(true); 
+      for(int i=0; i<NUM_NEOPIXELS; i++) 
+        oLEDarray[i] = LEDcol;
+      FastLED.show(g_Brightness);
+    }
+    
   public:
     candle(CRGB* o_LEDarray) {
       this->oLEDarray = o_LEDarray;
@@ -124,15 +128,11 @@ class candle {
           if (oColour[i] < 0 || oColour[i] > 255 || random(randomJump) == 0) oColour[i] = random(255);   // check colour is still valid
           oTime[i] = timeNow;                                       // flag time of last change
           oDelay[i] = random(randomDelayMin, randomDelayMax);       // set a delay until next change
-          // randomly off for a longer time
+          // randomly blink
             if (random(randomOff) == 1) {
               oDelay[i] = random(offTime);  
               oColour[i] = 0;
-            }
-          // randomly no change for a longer time
-            if (random(randomNoChange) == 1) {
-              oDelay[i] = noChangeTime;  
-            }            
+            }         
         }
       }
       show();   // display results
@@ -140,20 +140,13 @@ class candle {
 
     // test all leds in string
     void colourShow() { 
-      FastLED.clear(false); 
-      for(int i=0; i<NUM_NEOPIXELS; i++) 
-        oLEDarray[i] = CRGB(255, 0, 0);
-      FastLED.show(g_Brightness);
-      delay(1000);
-      for(int i=0; i<NUM_NEOPIXELS; i++) 
-        oLEDarray[i] = CRGB(0, 255, 0);
-      FastLED.show(g_Brightness);
-      delay(1000);
-      for(int i=0; i<NUM_NEOPIXELS; i++) 
-        oLEDarray[i] = CRGB(0, 0, 255);
-      FastLED.show(g_Brightness);
-      delay(1000);            
-      FastLED.clear(true);   // clear all leds
+      setall(CRGB::Red); 
+      delay(500);
+      setall(CRGB::Green); 
+      delay(500);
+      setall(CRGB::Blue); 
+      delay(500);
+      FastLED.clear(true); 
     }
 }; 
 
