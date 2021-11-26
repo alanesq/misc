@@ -105,7 +105,8 @@ void draw()
      // extract numbers from the string                
        String[] a = split(inString, ',');              // split comma separated values in to an array
        for (int i = 0; i < a.length; i++) {
-        inVal[i] = Integer.parseInt(a[i].trim());      // store received in array of integers
+        try { inVal[i] = Integer.parseInt(a[i].trim()); }   // store received data in array of integers
+        catch (NumberFormatException e) { inVal[i] = 0; }   // if there was an error converting to integer
        }
    }
    // inString = inString.replace('\n', ' ');           // remove line feed from string
