@@ -10,11 +10,11 @@
                                   }
                                   
                                   void loop() {
-                                    Serial.print(millis(), DEC); 
-                                    Serial.print(",");
-                                    Serial.print(23, DEC);
-                                    Serial.print(",");
-                                    Serial.println(42, DEC);
+                                      Serial.print(random(255), DEC);
+                                      Serial.print(",");
+                                      Serial.print(random(255), DEC);
+                                      Serial.print(",");
+                                      Serial.println(random(255), DEC);
                                     delay(1000);
                                   }
 
@@ -23,7 +23,7 @@
 
 // Misc variables
   String sketchTitle = "Starting point sketch - 26Nov21";     // sketch title
-  int inVal;                                                  // data received from serial port
+  int[] inVal = new int[10];                                  // data received from serial port (max 10 per line)
   char keyPressed = 0;                                        // key pressed on keyboard
   
   
@@ -77,15 +77,20 @@ void draw()
       } else {
         // display serial port name
           text("Device detected: " + detected_port, 20, 3*lineHeight);
-          text("Last number received: " + inVal, 20, 5*lineHeight);
+          text("Last numbers received: " + inVal[0] + ", " + inVal[1] + ", " + inVal[2], 20, 5*lineHeight);
       }
       
     // if a key has been pressed
       if (keyPressed != 0) {
         text("Last key pressed: '" + keyPressed + "'", 20, 8*lineHeight);
         // keyPressed = 0;    // clear keyboard entry
-      }
-      
+      }  
+ 
+     // change text colour based on received data
+       if (inVal[0] != 0) {
+         fill(inVal[0], inVal[1], inVal[2]);
+       }
+ 
 }
 
 
@@ -98,9 +103,9 @@ void draw()
    if (inString != null) {
      print("Data received:" + inString);
      // extract numbers from the string                
-       String[] a = split(inString, ',');           // split comma separated values in to an array
-       if (a.length == 1) {                         // if expected number of variables received
-        inVal = Integer.parseInt(a[0].trim());      // store first number received
+       String[] a = split(inString, ',');              // split comma separated values in to an array
+       for (int i = 0; i < a.length; i++) {
+        inVal[i] = Integer.parseInt(a[i].trim());      // store received in array of integers
        }
    }
    // inString = inString.replace('\n', ' ');           // remove line feed from string
