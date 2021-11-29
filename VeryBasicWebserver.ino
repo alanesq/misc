@@ -8,7 +8,7 @@
 //       https://github.com/alanesq/BasicWebserver/blob/master/misc/VeryBasicWebserver.ino
 //
 //
-//       Pages:   http://x.x.x.x/ , http://x.x.x.x/test , http://x.x.x.x/button , http://x.x.x.x/ajax
+//       Pages:   http://x.x.x.x/ , http://x.x.x.x/test , http://x.x.x.x/button , http://x.x.x.x/ajax 
 // 
 //
 // ----------------------------------------------------------------
