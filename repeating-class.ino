@@ -30,7 +30,7 @@ class repeatTimer {
 
     void disable() {                                                  // disable the timer
       _enabled = 0;
-    }
+    } 
 
     void enable() {                                                   // re-enable the timer
       _enabled = 1;
