@@ -7,7 +7,7 @@
         Arduino code example:
                                   void setup() {
                                     Serial.begin(115200);
-                                  }
+                                  } 
                                   
                                   void loop() {
                                       Serial.print(random(255), DEC);
