@@ -6,7 +6,7 @@
  *                          server.on("/ota", handleOTA);           // in setup
  *                          const char* stitle = "NeoPixels";       // title of the sketch
  *                          const char* sversion = "16Dec21";       // version of the sketch
- *                          #include "ota-sa.h"                     // after wifi includes
+ *                          #include "ota-standalone.h"             // after wifi includes
  *
  *
  **************************************************************************************************/
