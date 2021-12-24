@@ -287,13 +287,14 @@ void loop() {
 
 
 // ----------------------------------------------------------------
-//                     -set the curently effect
+//                 -set the currently selected effect
 // ----------------------------------------------------------------
 // see: https://github.com/kitesurfer1404/WS2812FX
+//      setSegment(segment index, start LED, stop LED, mode, colors[], speed, reverse);
 
 void setEffect() {
 
-  static uint32_t colors[] = {RED, GREEN, BLUE};
+  static uint32_t colors[] = {RED, GREEN, BLUE};    // colours to use in the effects
   if (selectedEffect1 > maxEffect) selectedEffect1=0;
   if (selectedEffect2 > maxEffect) selectedEffect2=0;
 
@@ -301,9 +302,9 @@ void setEffect() {
     // no split
       ws2812fx.setSegment(0, 0, NUM_NEOPIXELS-1, selectedEffect1, colors, ledSpeed, false);
   } else {
-    // divide the string of LEDs into two independent segments - setSegment(segment index, start LED, stop LED, mode, colors[], speed, reverse);
+    // divide the string of LEDs into two independent segments
       ws2812fx.setSegment(0, 0, neopixelSplit-1, selectedEffect1, colors, ledSpeed, false);
-      ws2812fx.setSegment(1,  neopixelSplit, NUM_NEOPIXELS-1, selectedEffect2, COLORS(ORANGE, PURPLE), ledSpeed, false);
+      ws2812fx.setSegment(1, neopixelSplit, NUM_NEOPIXELS-1, selectedEffect2, colors, ledSpeed, false);
   }
 }
 
@@ -318,102 +319,106 @@ void handleRoot(){
 
   if (serialDebug) Serial.println("Root webpage requested");
 
-  // if value for brightness has been entered
-    if (server.hasArg("brightness")) {
-      String Tvalue = server.arg("brightness");   // read value
-      int val = Tvalue.toInt();
-      if (val > 0 && val <= maxBrightness) {
-        g_Brightness = val;
-        ws2812fx.setBrightness(g_Brightness);
-        if (serialDebug) Serial.println("Brightness changed to: " + Tvalue);
-        writeSettings();     // store in eeprom
-      }
-    }
 
-  // if value for display speed has been entered
-    if (server.hasArg("speed")) {
-      String Tvalue = server.arg("speed");   // read value
-      int val = Tvalue.toInt();
-      if (val > 0) {
-        ledSpeed = val;
-        setEffect();  // activate the effect
-        if (serialDebug) Serial.println("Speed changed to: " + Tvalue);
-        writeSettings();     // store in eeprom
-      }
-    }
+  // handle any user input
 
-    // if change effect 1 has been entered
-      if (server.hasArg("effect1")) {
-        String Tvalue = server.arg("effect1");   // read value
+    // if value for brightness has been entered
+      if (server.hasArg("brightness")) {
+        String Tvalue = server.arg("brightness");   // read value
         int val = Tvalue.toInt();
-        if (val >= 0 && val <= maxEffect) {
-          selectedEffect1 = val;
+        if (val > 0 && val <= maxBrightness) {
+          g_Brightness = val;
+          ws2812fx.setBrightness(g_Brightness);
+          if (serialDebug) Serial.println("Brightness changed to: " + Tvalue);
+          writeSettings();     // store in eeprom
+        }
+      }
+
+    // if value for display speed has been entered
+      if (server.hasArg("speed")) {
+        String Tvalue = server.arg("speed");   // read value
+        int val = Tvalue.toInt();
+        if (val > 0) {
+          ledSpeed = val;
           setEffect();  // activate the effect
-          if (serialDebug) Serial.println("Effect1 changed to: " + Tvalue);
+          if (serialDebug) Serial.println("Speed changed to: " + Tvalue);
           writeSettings();     // store in eeprom
         }
       }
 
-    // if change effect 2 has been entered
-      if (server.hasArg("effect2")) {
-        String Tvalue = server.arg("effect2");   // read value
-        int val = Tvalue.toInt();
-        if (val >= 0 && val <= maxEffect) {
-          selectedEffect2 = val;
-          setEffect();  // activate the effect
-          if (serialDebug) Serial.println("Effect1 changed to: " + Tvalue);
-          writeSettings();     // store in eeprom
+      // if change effect 1 has been entered
+        if (server.hasArg("effect1")) {
+          String Tvalue = server.arg("effect1");   // read value
+          int val = Tvalue.toInt();
+          if (val >= 0 && val <= maxEffect) {
+            selectedEffect1 = val;
+            setEffect();  // activate the effect
+            if (serialDebug) Serial.println("Effect1 changed to: " + Tvalue);
+            writeSettings();     // store in eeprom
+          }
         }
-      }
 
-    // if change in split has been entered
-      if (server.hasArg("split")) {
-        String Tvalue = server.arg("split");   // read value
-        int val = Tvalue.toInt();
-        if (val >= 0 && val <= NUM_NEOPIXELS-2) {
-          neopixelSplit = val;
-          setEffect();      // activate the effects
-          if (serialDebug) Serial.println("LED split changed to: " + Tvalue);
-          writeSettings();     // store in eeprom
+      // if change effect 2 has been entered
+        if (server.hasArg("effect2")) {
+          String Tvalue = server.arg("effect2");   // read value
+          int val = Tvalue.toInt();
+          if (val >= 0 && val <= maxEffect) {
+            selectedEffect2 = val;
+            setEffect();  // activate the effect
+            if (serialDebug) Serial.println("Effect1 changed to: " + Tvalue);
+            writeSettings();     // store in eeprom
+          }
         }
-      }
 
-  // html header
-    webheader(client);                                       // add the standard html header
-    client.print("<FORM action='/' method='post'>\n");       // used by the buttons in the html (action = the web page to send it to
+      // if change in split has been entered
+        if (server.hasArg("split")) {
+          String Tvalue = server.arg("split");   // read value
+          int val = Tvalue.toInt();
+          if (val >= 0 && val <= NUM_NEOPIXELS-2) {
+            neopixelSplit = val;
+            setEffect();      // activate the effects
+            if (serialDebug) Serial.println("LED split changed to: " + Tvalue);
+            writeSettings();     // store in eeprom
+          }
+        }
 
-  // html body
-    client.print("<h1>ESP01 - Neopixels</h1>\n");
 
-  // status
-    client.print("<br>Available effects: " + String(maxEffect));
-    client.print("<br>Number of neopixels: " + String(NUM_NEOPIXELS));
-    //client.print("<br>Maximum power: " + String(g_PowerLimit) + "ma");
+    // build html reply
 
-  // enter brightness
-    client.printf("<br>Brightness <input type='number' style='width: 35px' name='brightness' value='%d' title='LED brightness (1 to %d)'>\n", g_Brightness, maxBrightness);
+      // header
+        webheader(client);                                       // add the standard html header
+        client.print("<FORM action='/' method='post'>\n");       // used by the buttons in the html (action = the web page to send it to
 
-  // split position
-    client.printf("<br>LED effects split point <input type='number' style='width: 35px' value='%d' name='split' title='LED effects split point'> (0=no split)\n", neopixelSplit);
+      // body
 
-  // change effect
-    client.printf("<br>Active effect <input type='number' style='width: 35px' value='%d' name='effect1' title='change effect (0 - %d)'>\n", selectedEffect1, maxEffect);
+        // status info.
+          client.print("<br>Available effects: " + String(maxEffect));
+          client.print("<br>Number of neopixels: " + String(NUM_NEOPIXELS));
 
-  // change effect (split)
-    if (neopixelSplit > 0) {
-      client.printf("<br>Active effect after split <input type='number' style='width: 35px' value='%d' name='effect2' title='change effect (0 - %d)'>\n", selectedEffect2, maxEffect);
-    }
+        // brightness
+          client.printf("<br>Brightness <input type='number' style='width: 35px' name='brightness' value='%d' title='LED brightness (1 to %d)'>\n", g_Brightness, maxBrightness);
 
-  // change speed
-    client.printf("<br>Effect speed <input type='number' style='width: 55px' value='%d' name='speed' title='change effect speed (higher=slower)'>\n", ledSpeed);
+        // split position
+          client.printf("<br>LED effects split point <input type='number' style='width: 35px' value='%d' name='split' title='LED effects split point'> (0=no split)\n", neopixelSplit);
 
-  // submit button
-    client.print("<br><br><input type='submit' name='submit'><BR>\n");
+        // effect (main)
+          client.printf("<br>Active effect <input type='number' style='width: 35px' value='%d' name='effect1' title='change effect (0 - %d)'>\n", selectedEffect1, maxEffect);
 
-  // end html
-    webfooter(client);                          // add the standard web page footer
-    delay(3);
-    client.stop();
+        // effect (split)
+          if (neopixelSplit > 0) {
+            client.printf("<br>Active effect after split <input type='number' style='width: 35px' value='%d' name='effect2' title='change effect (0 - %d)'>\n", selectedEffect2, maxEffect);
+          }
+
+        // speed
+          client.printf("<br>Effect speed <input type='number' style='width: 55px' value='%d' name='speed' title='change effect speed (higher=slower)'>\n", ledSpeed);
+
+        // submit button
+          client.print("<br><br><input type='submit' name='submit'><BR>\n");
+
+      // end html
+        webfooter(client);                          // add the standard web page footer
+        delay(3);
+        client.stop();
 
 }  // handleRoot
 
