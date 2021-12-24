@@ -39,7 +39,7 @@ pins are:   GPIO0 = flash
   // Neopixels
   #define NUM_NEOPIXELS   195             // Number of LEDs in the string
   #define NEOPIXEL_PIN    2               // Neopixel gpio pin (Note: should have 330k resistor ideally) (5 = D1 on esp8266)
-  byte maxEffect = 55;                    // number of effects available
+  byte maxEffect = 55;                    // number of effects available - see listEffects();
 
 
   //   -----------------------------------------------------------------------------------------
@@ -164,6 +164,76 @@ void webfooter(WiFiClient &client) {
    client.write("</html>\n");
 
 }
+
+
+// ----------------------------------------------------------------
+//                 -list all LED effects available
+// ----------------------------------------------------------------
+
+void listEffects(WiFiClient &client) {
+  client.print (R"=====(
+    <br><br>
+    <p style='text-align:left;'>
+    AVAILABLE EFFECTS: <br>
+    0 - Static - No blinking. Just plain old static light. <br>
+    1 - Blink - Normal blinking. 50% on/off time.	<br>
+    2 - Breath - Does the "standby-breathing" of well known i-Devices. Fixed Speed.	<br>
+    3 - Color Wipe - Lights all LEDs after each other up. Then turns them in that order off. Repeat.	<br>
+    4 - Color Wipe Inverse - Same as Color Wipe, except swaps on/off colors.	<br>
+    5 - Color Wipe Reverse - Lights all LEDs after each other up. Then turns them in reverse order off. Repeat.	<br>
+    6 - Color Wipe Reverse Inverse - Same as Color Wipe Reverse, except swaps on/off colors.	<br>
+    7 - Color Wipe Random - Turns all LEDs after each other to a random color. Then starts over with another color.	<br>
+    8 - Random Color - Lights all LEDs in one random color up. Then switches them to the next random color.	<br>
+    9 - Single Dynamic - Lights every LED in a random color. Changes one random LED after the other to a random color.	<br>
+    10 - Multi Dynamic - Lights every LED in a random color. Changes all LED at the same time to new random colors.	<br>
+    11 - Rainbow - Cycles all LEDs at once through a rainbow.	<br>
+    12 - Rainbow Cycle - Cycles a rainbow over the entire string of LEDs.	<br>
+    13 - Scan - Runs a single pixel back and forth.	<br>
+    14 - Dual Scan - Runs two pixel back and forth in opposite directions.	<br>
+    15 - Fade - Fades the LEDs on and (almost) off again.	<br>
+    16 - Theater Chase - Theatre-style crawling lights. Inspired by the Adafruit examples.	<br>
+    17 - Theater Chase Rainbow - Theatre-style crawling lights with rainbow effect. Inspired by the Adafruit examples.	<br>
+    18 - Running Lights - Running lights effect with smooth sine transition.	<br>
+    19 - Twinkle - Blink several LEDs on, reset, repeat.	<br>
+    20 - Twinkle Random - Blink several LEDs in random colors on, reset, repeat.	<br>
+    21 - Twinkle Fade - Blink several LEDs on, fading out.	<br>
+    22 - Twinkle Fade Random - Blink several LEDs in random colors on, fading out.	<br>
+    23 - Sparkle - Blinks one LED at a time.	<br>
+    24 - Flash Sparkle - Lights all LEDs in the selected color. Flashes single white pixels randomly.	<br>
+    25 - Hyper Sparkle - Like flash sparkle. With more flash.	<br>
+    26 - Strobe - Classic Strobe effect.	<br>
+    27 - Strobe Rainbow - Classic Strobe effect. Cycling through the rainbow.	<br>
+    28 - Multi Strobe - Strobe effect with different strobe count and pause, controlled by speed setting.	<br>
+    29 - Blink Rainbow - Classic Blink effect. Cycling through the rainbow.	<br>
+    30 - Chase White - Color running on white.	<br>
+    31 - Chase Color - White running on color.	<br>
+    32 - Chase Random - White running followed by random color.	<br>
+    33 - Chase Rainbow - White running on rainbow.	<br>
+    34 - Chase Flash - White flashes running on color.	<br>
+    35 - Chase Flash Random - White flashes running, followed by random color.	<br>
+    36 - Chase Rainbow White - Rainbow running on white.	<br>
+    37 - Chase Blackout - Black running on color.	<br>
+    38 - Chase Blackout Rainbow - Black running on rainbow.	<br>
+    39 - Color Sweep Random - Random color introduced alternating from start and end of strip.	<br>
+    40 - Running Color - Alternating color/white pixels running.	<br>
+    41 - Running Red Blue - Alternating red/blue pixels running.	<br>
+    42 - Running Random - Random colored pixels running.	<br>
+    43 - Larson Scanner - K.I.T.T.	<br>
+    44 - Comet - Firing comets from one end.	<br>
+    45 - Fireworks - Firework sparks.	<br>
+    46 - Fireworks Random - Random colored firework sparks.	<br>
+    47 - Merry Christmas - Alternating green/red pixels running.	<br>
+    48 - Fire Flicker - Fire flickering effect. Like in harsh wind.	<br>
+    49 - Fire Flicker (soft) - Fire flickering effect. Runs slower/softer.	<br>
+    50 - Fire Flicker (intense) - Fire flickering effect. More range of color.	<br>
+    51 - Circus Combustus - Alternating white/red/black pixels running.	<br>
+    52 - Halloween - Alternating orange/purple pixels running.	<br>
+    53 - Bicolor Chase - Two LEDs running on a background color.	<br>
+    54 - Tricolor Chase - Alternating three color pixels running.	<br>
+    55 - TwinkleFOX - Lights fading in and out randomly.
+    </p>
+  )=====");
+}   // listEffects
 
 
 // ----------------------------------------------------------------
@@ -413,7 +483,10 @@ void handleRoot(){
           client.printf("<br>Effect speed <input type='number' style='width: 55px' value='%d' name='speed' title='change effect speed (higher=slower)'>\n", ledSpeed);
 
         // submit button
-          client.print("<br><br><input type='submit' name='submit'><BR>\n");
+          client.print("<br><br><input type='submit' name='submit'>\n");
+
+        // list available options
+          listEffects(client);
 
       // end html
         webfooter(client);                          // add the standard web page footer
