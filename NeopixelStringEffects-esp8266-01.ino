@@ -30,7 +30,7 @@ pins are:   GPIO0 = flash
 //  #define SSID_PASWORD "wifi password"
 
   const char* stitle = "NeoPixels";       // title of this sketch
-  const char* sversion = "24Dec21";       // version of this sketch
+  const char* sversion = "25Dec21";       // version of this sketch
 
   const bool serialDebug = 0;             // debug info on serial port
 
@@ -65,6 +65,7 @@ pins are:   GPIO0 = flash
   uint16_t neopixelSplit = 0;                     // if neopixel display is split at what led (0=not split)
   byte maxBrightness = 20;                        // maximum brightness allowed (up to 100)
   uint16_t ledSpeed = 1000;                       // display speed
+  bool reverseEffects = 0;                        // reverse the effects
 
 // wifi
   #if defined ESP8266
@@ -296,7 +297,7 @@ void setup() {
 
 void readSettings(){
 
-  EEPROM.begin(16);
+  EEPROM.begin(16);     // max bytes to be stored = 16
 
   // selectedEffect (split 1) - byte
     EEPROM.get(0, selectedEffect1);
@@ -323,6 +324,12 @@ void readSettings(){
     EEPROM.get(5, ledSpeed);    // uint16_t
     if (ledSpeed < 10) ledSpeed=1000;
     if (serialDebug) Serial.println("Led speed: " + String(ledSpeed));
+
+  // reverse flag
+    EEPROM.get(7, reverseEffects);   // bool
+
+  if (serialDebug) serial.println("Settings read from eeprom");
+
 }
 
 
@@ -337,9 +344,11 @@ void writeSettings(){
     EEPROM.put(2, g_Brightness);      // byte
     EEPROM.put(3, neopixelSplit);     // uint16_t
     EEPROM.put(5, ledSpeed);          // uint16_t
-    // next = 7
+    EEPROM.put(7, reverseEffects);    // bool
+    // next = 8
 
     EEPROM.commit();    // write out data
+    if (serialDebug) serial.println("Settings saved to eeprom");
 }
 
 
@@ -357,24 +366,25 @@ void loop() {
 
 
 // ----------------------------------------------------------------
-//                 -set the currently selected effect
+//                -set the currently selected effects
 // ----------------------------------------------------------------
 // see: https://github.com/kitesurfer1404/WS2812FX
 //      setSegment(segment index, start LED, stop LED, mode, colors[], speed, reverse);
 
 void setEffect() {
 
-  static uint32_t colors[] = {RED, GREEN, BLUE};    // colours to use in the effects
+  static uint32_t colors1[] = {RED, GREEN, BLUE};    // colours to use in the effects
+  static uint32_t colors2[] = {RED, GREEN, BLUE};    // colours to use in the effects
   if (selectedEffect1 > maxEffect) selectedEffect1=0;
   if (selectedEffect2 > maxEffect) selectedEffect2=0;
 
   if (neopixelSplit == 0) {
-    // no split
-      ws2812fx.setSegment(0, 0, NUM_NEOPIXELS-1, selectedEffect1, colors, ledSpeed, false);
+    // one effect
+      ws2812fx.setSegment(0, 0, NUM_NEOPIXELS-1, selectedEffect1, colors1, ledSpeed, reverseEffects);
   } else {
-    // divide the string of LEDs into two independent segments
-      ws2812fx.setSegment(0, 0, neopixelSplit-1, selectedEffect1, colors, ledSpeed, false);
-      ws2812fx.setSegment(1, neopixelSplit, NUM_NEOPIXELS-1, selectedEffect2, colors, ledSpeed, false);
+    // divide in to two independent effects
+      ws2812fx.setSegment(0, 0, neopixelSplit-1, selectedEffect1, colors1, ledSpeed, reverseEffects);
+      ws2812fx.setSegment(1, neopixelSplit, NUM_NEOPIXELS-1, selectedEffect2, colors2, ledSpeed, reverseEffects);
   }
 }
 
@@ -452,6 +462,20 @@ void handleRoot(){
           }
         }
 
+        // display direction
+          if (server.hasArg("direction")) {
+            String Tvalue = server.arg("direction");   // read value
+            if (Tvalue == "forward" && reverseEffects == 1) {   // if forward was selected and it is currently reversed
+              reverseEffects=0;
+              writeSettings();     // store in eeprom
+              if (serialDebug) Serial.println("Direction set to normal");
+            }
+            else if (Tvalue == "reverse" && reverseEffects == 0) {
+              reverseEffects=1;
+              writeSettings();     // store in eeprom
+              if (serialDebug) Serial.println("Direction set to reverse");
+            }
+          }
 
     // build html reply
 
@@ -468,7 +492,7 @@ void handleRoot(){
         // brightness
           client.printf("<br>Brightness <input type='number' style='width: 35px' name='brightness' value='%d' title='LED brightness (1 to %d)'>\n", g_Brightness, maxBrightness);
 
-        // split position
+        // LED string split position
           client.printf("<br>LED effects split point <input type='number' style='width: 35px' value='%d' name='split' title='LED effects split point'> (0=no split)\n", neopixelSplit);
 
         // effect (main)
@@ -481,6 +505,17 @@ void handleRoot(){
 
         // speed
           client.printf("<br>Effect speed <input type='number' style='width: 55px' value='%d' name='speed' title='change effect speed (higher=slower)'>\n", ledSpeed);
+
+        // display direction
+          client.print("<br>Display direction <select name='direction'>");
+          if (reverseEffects) {
+            client.print("<option value='reverse'>Reverse</option>");
+            client.print("<option value='forward'>Forward</option>");
+          } else {
+            client.print("<option value='forward'>Forward</option>");
+            client.print("<option value='reverse'>Reverse</option>");
+          }
+          client.print("</select>");
 
         // submit button
           client.print("<br><br><input type='submit' name='submit'>\n");
