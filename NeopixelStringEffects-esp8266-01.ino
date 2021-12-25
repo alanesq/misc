@@ -299,36 +299,36 @@ void readSettings(){
 
   EEPROM.begin(16);     // max bytes to be stored = 16
 
-  // selectedEffect (split 1) - byte
+  // selectedEffect (main or split 1) - 1 byte
     EEPROM.get(0, selectedEffect1);
     if (selectedEffect1 < 0 || selectedEffect1 > maxEffect) selectedEffect1=0;
     if (serialDebug) Serial.println("Effect1: " + String(selectedEffect1));
 
-  // selectedEffect (split 2) - byte
+  // selectedEffect (split 2) - 1 byte
     EEPROM.get(1, selectedEffect2);
     if (selectedEffect2 < 0 || selectedEffect2 > maxEffect) selectedEffect2=0;
     if (serialDebug) Serial.println("Effect2: " + String(selectedEffect2));
 
-  // LED Brightness - byte
+  // LED Brightness - 1 byte
     EEPROM.get(2, g_Brightness);
     if (g_Brightness < 1 || g_Brightness > maxBrightness) g_Brightness=10;
     ws2812fx.setBrightness(g_Brightness);
     if (serialDebug) Serial.println("Brightness: " + String(g_Brightness));
 
-  // led split point - byte
+  // led split point - 1 byte
     EEPROM.get(3, neopixelSplit);
     if (neopixelSplit < 0 || neopixelSplit > NUM_NEOPIXELS-1) neopixelSplit=0;
     if (serialDebug) Serial.println("Led split: " + String(neopixelSplit));
 
-  // LED display speed - uint16_t
+  // LED display speed - uint16_t - 2 bytes
     EEPROM.get(5, ledSpeed);    // uint16_t
     if (ledSpeed < 10) ledSpeed=1000;
     if (serialDebug) Serial.println("Led speed: " + String(ledSpeed));
 
   // reverse flag
-    EEPROM.get(7, reverseEffects);   // bool
+    EEPROM.get(7, reverseEffects);   // bool - 1 byte
 
-  if (serialDebug) serial.println("Settings read from eeprom");
+  if (serialDebug) Serial.println("Settings read from eeprom");
 
 }
 
@@ -339,16 +339,16 @@ void readSettings(){
 
 void writeSettings(){
 
-    EEPROM.put(0, selectedEffect1);   // byte
-    EEPROM.put(1, selectedEffect2);   // byte
-    EEPROM.put(2, g_Brightness);      // byte
-    EEPROM.put(3, neopixelSplit);     // uint16_t
-    EEPROM.put(5, ledSpeed);          // uint16_t
-    EEPROM.put(7, reverseEffects);    // bool
+    EEPROM.put(0, selectedEffect1);   // 1 byte
+    EEPROM.put(1, selectedEffect2);   // 1 byte
+    EEPROM.put(2, g_Brightness);      // 1 byte
+    EEPROM.put(3, neopixelSplit);     // uint16_t - 2 bytes
+    EEPROM.put(5, ledSpeed);          // uint16_t - 2 bytes
+    EEPROM.put(7, reverseEffects);    // bool - 1 byte
     // next = 8
 
     EEPROM.commit();    // write out data
-    if (serialDebug) serial.println("Settings saved to eeprom");
+    if (serialDebug) Serial.println("Settings saved to eeprom");
 }
 
 
@@ -374,7 +374,7 @@ void loop() {
 void setEffect() {
 
   static uint32_t colors1[] = {RED, GREEN, BLUE};    // colours to use in the effects
-  static uint32_t colors2[] = {RED, GREEN, BLUE};    // colours to use in the effects
+  static uint32_t colors2[] = {RED, GREEN, BLUE};
   if (selectedEffect1 > maxEffect) selectedEffect1=0;
   if (selectedEffect2 > maxEffect) selectedEffect2=0;
 
@@ -467,11 +467,13 @@ void handleRoot(){
             String Tvalue = server.arg("direction");   // read value
             if (Tvalue == "forward" && reverseEffects == 1) {   // if forward was selected and it is currently reversed
               reverseEffects=0;
+              setEffect();         // activate the effect
               writeSettings();     // store in eeprom
               if (serialDebug) Serial.println("Direction set to normal");
             }
             else if (Tvalue == "reverse" && reverseEffects == 0) {
               reverseEffects=1;
+              setEffect();         // activate the effect
               writeSettings();     // store in eeprom
               if (serialDebug) Serial.println("Direction set to reverse");
             }
