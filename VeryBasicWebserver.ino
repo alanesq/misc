@@ -14,13 +14,11 @@
 
 //   ---------------------------------------------------------------------------------------------------------
 
-//                                      Wifi Settings
 
-#include <wifiSettings.h>       // delete this line, un-comment the below two lines and enter your wifi details
+//         Wifi Settings - uncomment and set here if not stored in platformio.ini
 
-//const char *SSID = "your_wifi_ssid";
-
-//const char *PWD = "your_wifi_pwd";
+//  #define SSID_NAME "Wifi SSID"
+//  #define SSID_PASWORD "wifi password"
 
 
 //   ---------------------------------------------------------------------------------------------------------
@@ -83,16 +81,24 @@ void setup() {
     pinMode(LEDpin, OUTPUT);
     digitalWrite(LEDpin, HIGH);
 
-  // Connect to Wifi
-    Serial.print("Connecting to ");
-    Serial.println(SSID);
-    WiFi.begin(SSID, PWD);
-    while (WiFi.status() != WL_CONNECTED) {
-      Serial.print(".");
-      delay(500);
-    }
-    Serial.print("\nConnected - IP: ");
-    Serial.println(WiFi.localIP());
+    // Connect to wifi
+      if (serialDebug) {
+        Serial.print("\nConnecting to ");
+        Serial.print(SSID_NAME);
+        Serial.print("\n   ");
+      }
+      WiFi.begin(SSID_NAME, SSID_PASWORD);         // can be set in platformio.ini
+      while (WiFi.status() != WL_CONNECTED) {
+          delay(500);
+          if (serialDebug) Serial.print(".");
+      }
+      if (serialDebug) {
+        Serial.print("\nWiFi connected, ");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+      }
+      server.begin();                               // start web server
+      digitalWrite(LEDpin, LOW);
 
   // set up web server pages to serve
     server.on("/", handleRoot);                   // root web page (i.e. when root page is requested run procedure 'handleroot')
@@ -150,7 +156,7 @@ void handleRoot(){
 
   if (serialDebug) Serial.println("Root page requested");
 
-  String message = "root web page";
+  String message = "root web page.  Other pages are /test, /button, /ajax";
 
   server.send(404, "text/plain", message);   // send reply as plain text
 
