@@ -385,8 +385,16 @@ void handleNotFound() {
 //   @param    received     String to store response in
 //   @param    maxWaitTime  maximum time to wait for reply (ms)
 //   @returns  http code
-// see:  https://randomnerdtutorials.com/esp32-http-get-post-arduino/#http-get-1
-// to do:  limit size of reply
+/*
+      see:  https://randomnerdtutorials.com/esp32-http-get-post-arduino/#http-get-1
+      Example usage:
+                              String page = "http://192.168.1.166/ping";   // url to request
+                              String response;                             // reply will be stored here
+                              int httpCode = requestWebPage(&page, &response);
+                              // show results
+                                Serial.println("Web page requested: '" + page + "' - http code: " + String(httpCode));
+                                Serial.println(response);   
+*/
 
 int requestWebPage(String* page, String* received, int maxWaitTime=5000){
 
