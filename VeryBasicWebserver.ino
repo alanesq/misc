@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------
 //
 //
-//       ESP32 / ESp8266  very basic web server demo - 29Dec21
+//       ESP32 / ESp8266  very basic web server demo - 30Dec21
 //                for Arduino IDE or PlatformIO
 //
 //       shows use of AJAX to show updating info on the web page
@@ -13,7 +13,6 @@
 
 
 //   ---------------------------------------------------------------------------------------------------------
-
 
 //         Wifi Settings - uncomment and set here if not stored in platformio.ini
 
@@ -378,6 +377,7 @@ void handleNotFound() {
 // Not used in this sketch but provided as an example of how to request an external web page and receive the reply as a string
 
 
+/*
 // ----------------------------------------------------------------
 //                        request a web page
 // ----------------------------------------------------------------
@@ -385,16 +385,6 @@ void handleNotFound() {
 //   @param    received     String to store response in
 //   @param    maxWaitTime  maximum time to wait for reply (ms)
 //   @returns  http code
-/*
-      see:  https://randomnerdtutorials.com/esp32-http-get-post-arduino/#http-get-1
-      Example usage:
-                              String page = "http://192.168.1.166/ping";   // url to request
-                              String response;                             // reply will be stored here
-                              int httpCode = requestWebPage(&page, &response);
-                              // show results
-                                Serial.println("Web page requested: '" + page + "' - http code: " + String(httpCode));
-                                Serial.println(response);   
-*/
 
 int requestWebPage(String* page, String* received, int maxWaitTime=5000){
 
@@ -421,6 +411,23 @@ int requestWebPage(String* page, String* received, int maxWaitTime=5000){
 
 }  // requestWebPage
 
+
+
+// example of how to use the above
+  // request web page
+    String page = "http://webpage.com/page";     // url to request
+    String response;                             // reply will be stored here
+    int httpCode = requestWebPage(&page, &response);
+  // display the reply
+    Serial.println("Web page requested: '" + page + "' - http code: " + String(httpCode));
+    Serial.println(response);
+  // test the reply
+    response.toLowerCase();                    // convert all text in the reply to lower case
+    int tPos = response.indexOf("closed");     // search for text in the reply - see https://www.arduino.cc/en/Tutorial/BuiltInExamples
+    if (tPos != -1) {
+      Serial.println("rusult contains 'closed' at position " + String(tPos));
+    }
+*/    
 
 // ----------------------------------------------------------------
 // end
