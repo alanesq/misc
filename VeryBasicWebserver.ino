@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------
 //
 //
-//       ESP32 / ESp8266  very basic web server demo - 30Dec21
+//       ESP32 / ESp8266  very basic web server demo - 05jan22
 //                for Arduino IDE or PlatformIO
 //
 //       shows use of AJAX to show updating info on the web page
@@ -196,6 +196,8 @@ void handleTest(){
 
 void handleButton(){
 
+  static int demoValue = 0;      // value which can be changed on the web page
+
   if (serialDebug) Serial.println("Button page requested");
 
   // check if button1 has been pressed
@@ -206,6 +208,16 @@ void handleButton(){
   // check if button2 has been pressed
     if (server.hasArg("button2")) {
         Serial.println("Button 2 was pressed");
+    }
+
+  // check if value1 was entered
+    if (server.hasArg("value1")) {
+      String Tvalue = server.arg("value1");   // read value as a string
+      int Tval = Tvalue.toInt();              // convert to a to an Integer
+      if (Tval > 0 && Tval != demoValue) {    // if a new number has been entered
+        Serial.println("Value1 was entered: " + Tvalue);
+        demoValue = Tval;       // set the variable with entered value
+      }
     }
 
 
@@ -221,8 +233,17 @@ void handleButton(){
     client.print("<h1>Button demo page</h1>\n");
     if (server.hasArg("button1")) client.print("Button 1 has been pressed!");
     if (server.hasArg("button2")) client.print("Button 2 has been pressed!");
-    client.print("<br><br><input style='height: 35px;' name='button1' value='Demo button 1' type='submit'> \n");
-    client.print("<br><br><input style='height: 35px;' name='button2' value='Demo button 2' type='submit'> \n");
+
+    // buttons
+      client.print("<br><input style='height: 35px;' name='button1' value='Demo button 1' type='submit'> \n");
+      client.print(" - <input style='height: 35px;' name='button2' value='Demo button 2' type='submit'> \n");
+
+    // enter a value
+      client.print("<br><br>Current value = " + String(demoValue) +" \n");
+      client.print("<input type='number' style='width: 60px' name='value1' title='enter a new value' min='0' max='255' value=''>\n");
+
+    // input submit button
+      client.write(" <input type='submit' name='submit'>\n");
 
   // end html
     client.print("</body></html>\n");
@@ -251,13 +272,11 @@ void handleAJAX() {
   //     ---------------------- html ----------------------
 
   client.print (R"=====(
-
     <!DOCTYPE html>
     <html lang='en'>
     <head>
         <title>AJAX Demo</title>
     </head>
-
     <body>
     <div id='demo'>
         <h1>Update web page using AJAX</h1>
@@ -269,13 +288,11 @@ void handleAJAX() {
         Received text : <span id='ReceivedText'>NA</span><br>
         LED State is : <span id='LEDState'>NA</span><br>
     </div>
-
   )=====");
 
   //     ------------------- JavaScript -------------------
 
   client.print (R"=====(<script>
-
       function sendData(led) {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function() {
@@ -285,7 +302,6 @@ void handleAJAX() {
        };
        xhttp.open('GET', 'setLED?LEDstate='+led, true);
        xhttp.send();}
-
        function getData() {
           var xhttp = new XMLHttpRequest();
           xhttp.onreadystatechange = function() {
@@ -297,11 +313,9 @@ void handleAJAX() {
        };
        xhttp.open('GET', 'senddata', true);
        xhttp.send();}
-
        setInterval(function() {
           getData();
         }, 2000);
-
   </script>)=====");
   //     --------------------------------------------------
 
@@ -385,34 +399,24 @@ void handleNotFound() {
 //   @param    received     String to store response in
 //   @param    maxWaitTime  maximum time to wait for reply (ms)
 //   @returns  http code
-
 int requestWebPage(String* page, String* received, int maxWaitTime=5000){
-
   if (serialDebug) Serial.println("requesting web page: " + *page);
-
   WiFiClient client;
   HTTPClient http;     // see:  https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266HTTPClient
   http.setTimeout(maxWaitTime);
   http.begin(client, *page);      // for https requires (client, *page, thumbprint)  e.g.String thumbprint="08:3B:71:72:02:43:6E:CA:ED:42:86:93:BA:7E:DF:81:C4:BC:62:30";
   int httpCode = http.GET();      // http codes: https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
   if (serialDebug) Serial.println("http code: " + String(httpCode));
-
   if (httpCode > 0) {
     *received = http.getString();
   } else {
     *received = "error:" + String(httpCode);
   }
   if (serialDebug) Serial.println(*received);
-
   http.end();   //Close connection
   if (serialDebug) Serial.println("Web connection closed");
-
   return httpCode;
-
 }  // requestWebPage
-
-
-
 // example of how to use the above
   // request web page
     String page = "http://webpage.com/page";     // url to request
@@ -427,7 +431,7 @@ int requestWebPage(String* page, String* received, int maxWaitTime=5000){
     if (tPos != -1) {
       Serial.println("rusult contains 'closed' at position " + String(tPos));
     }
-*/    
+*/
 
 // ----------------------------------------------------------------
 // end
