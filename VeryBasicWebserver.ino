@@ -145,6 +145,21 @@ void loop() {
 }  // loop
 
 
+// ----------------------------------------------------------------
+//          -html header - send a standard html header
+// ----------------------------------------------------------------
+void sendHeader(WiFiClient &client) {
+  // html header
+    client.write("HTTP/1.1 200 OK\r\n");
+    client.write("Content-Type: text/html\r\n");
+    client.write("Connection: close\r\n");
+    client.write("\r\n");
+    client.write("<!DOCTYPE HTML>\n");
+    client.write("<html lang='en'>\n");
+    client.write("<head>\n");
+    client.write("<meta name='viewport' content='width=device-width, initial-scale=1.0'>\n");
+}
+
 
 // ----------------------------------------------------------------
 //      -test web page requested     i.e. http://x.x.x.x/
@@ -175,15 +190,7 @@ void handleTest(){
   WiFiClient client = server.client();     // open link with client
 
   // html header
-    client.write("HTTP/1.1 200 OK\r\n");
-    client.write("Content-Type: text/html\r\n");
-    client.write("Connection: close\r\n");
-    client.write("\r\n");
-    client.write("<!DOCTYPE HTML>\n");
-    client.write("<html lang='en'>\n");
-    client.write("<head>\n");
-    client.write("<meta name='viewport' content='width=device-width, initial-scale=1.0'>\n");
-
+    sendHeader(client);
     client.print("<title>test</title> </head> <body>\n");
 
   // html body
@@ -235,20 +242,10 @@ void handleButton(){
   WiFiClient client = server.client();     // open link with client
 
   // html header
-    client.write("HTTP/1.1 200 OK\r\n");
-    client.write("Content-Type: text/html\r\n");
-    client.write("Connection: close\r\n");
-    client.write("\r\n");
-    client.write("<!DOCTYPE HTML>\n");
-    client.write("<html lang='en'>\n");
-    client.write("<head>\n");
-    client.write("<meta name='viewport' content='width=device-width, initial-scale=1.0'>\n");
-
+    sendHeader(client);
     client.write("<title>button</title>\n");
     client.print("<FORM action='/button' method='post'>\n");       // used by the buttons in the html (action = the web page to send it to
     client.write("</head> <body>\n");
-
-
 
   // html body
     client.print("<h1>Button demo page</h1>\n");
@@ -291,14 +288,8 @@ void handleAJAX() {
 
   //     ---------------------- html ----------------------
 
-  // standard html header
-    client.write("HTTP/1.1 200 OK\r\n");
-    client.write("Content-Type: text/html\r\n");
-    client.write("Connection: close\r\n");
-    client.write("\r\n");
-    client.write("<!DOCTYPE HTML>\n");
-    client.write("<html lang='en'>\n");
-
+  // send standard html header
+    sendHeader(client);
 
   client.print (R"=====(
     <head>
@@ -362,7 +353,7 @@ void handleAJAX() {
 void handleSendData() {
    String reply = String(millis());                     // item 1
    reply += ",";
-   reply += "This text sent by handleSendtime()";       // item 2
+   reply += "This text sent by handleSendData()";       // item 2
    server.send(200, "text/plane", reply); //Send millis value only to client ajax request
 }
 
