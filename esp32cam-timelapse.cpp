@@ -1,7 +1,7 @@
 /*******************************************************************************************************************
 *
 *                         ESP32Cam timelapse sketch using Arduino IDE or PlatformIO
-*                                    Github: https://github.com/alanesq/ESP32Cam-demo
+*                                    Based on my demo sketch: https://github.com/alanesq/ESP32Cam-demo
 *
 *                                     Tested with ESP32 board manager version  1.0.6
 *
@@ -41,7 +41,6 @@
    bool storeImage();
    void handleRoot();
    void handlePhoto();
-   bool handleImg();
    void handleNotFound();
    bool getNTPtime(int sec);
    bool handleJPG();
@@ -163,6 +162,7 @@ WebServer server(80);           // serve web pages on port 80
  String spiffsFilename = "/image.jpg";     // image name to use when storing in spiffs
  int timeBetweenShots = 30;                // time between image captures (seconds)
  bool timelapseEnabled = 0;                // enable timelapse recording
+ String ImageResDetails = "Unknown";       // image resolution info
 
 
 // ******************************************************************************************************************
@@ -217,7 +217,6 @@ void setup() {
    server.on("/jpg", handleJPG);                 // capture image and send as jpg
    server.on("/stream", handleStream);           // stream live video
    server.on("/photo", handlePhoto);             // save image to sd card
-   server.on("/img", handleImg);                 // show image from sd card
    server.on("/test", handleTest);               // Testing procedure
    server.onNotFound(handleNotFound);            // invalid url requested
 
@@ -341,7 +340,8 @@ void loop() {
 // ----------------------------------------------------------------
 //                        Initialise the camera
 // ----------------------------------------------------------------
-// returns TRUE if successful
+// returns TRUE if successfull
+// see:  https://github.com/espressif/esp32-camera
 
 bool initialiseCamera() {
 
@@ -605,6 +605,7 @@ void changeResolution(framesize_t tRes = FRAMESIZE_96X96) {
   FRAME_SIZE_IMAGE = tRes;
   initialiseCamera();
   if (serialDebug) Serial.println("Camera resolution changed to " + String(tRes));
+  ImageResDetails = "Unknown";   // set next time image captured
 }
 
 
@@ -624,12 +625,11 @@ bool storeImage() {
    int currentBrightness = brightLEDbrightness;
    if (flashRequired) brightLed(255);   // change LED brightness (0 - 255)
    camera_fb_t *fb = esp_camera_fb_get();             // capture image frame from camera
-   if (flashRequired) brightLed(currentBrightness);   // change LED brightness back to previous state
    if (!fb) {
      if (serialDebug) Serial.println("Error: Camera capture failed");
      return 0;
    }
-
+ if (flashRequired) brightLed(currentBrightness);   // change LED brightness back to previous state
 
  // save the image to sd card
    if (serialDebug) Serial.printf("Storing image #%d to sd card \n", imageCounter);
@@ -690,6 +690,12 @@ void handleRoot() {
        else if (brightLEDbrightness == 10) brightLed(40);          // turn led on medium
        else if (brightLEDbrightness == 40) brightLed(255);         // turn led on full
        else brightLed(0);                                          // turn led off
+     }
+
+   // if button3 was pressed (Toggle flash)
+     if (server.hasArg("button3")) {
+       flashRequired = !flashRequired;
+       if (serialDebug) Serial.println("Flash toggled to: " + String(flashRequired));
      }
 
    // if button4 was pressed (change resolution)
@@ -767,48 +773,58 @@ void handleRoot() {
     client.printf("<h1>%s</H1>\n", stitle);
 
    // sd card details
-     if (sdcardPresent) client.printf("<p>SD Card detected - %d images stored</p>\n", imageCounter);
-     else client.write("<p>Error: No SD Card detected</p>\n");
+     if (sdcardPresent) client.printf("SD Card detected - %d images stored\n", imageCounter);
+     else client.println("<p>Error: No SD Card detected");
 
    // illumination/flash led
-     client.printf("<p>Illumination led brightness %d, Flash is ", brightLEDbrightness);
-     client.print((flashRequired==1) ? "enabled" : "disabled");
-     client.print("</p>\n");
+     client.printf("<br>Illumination led brightness %d, Flash is ", brightLEDbrightness);
+     client.println((flashRequired==1) ? "enabled" : "disabled");
 
    // Current real time
-     client.print("<p>Current time: " + localTime() + "</p>\n");
+     client.println("<br>Current time: " + localTime());
+
+   // gpio pin status
+     client.print("<br>Output pin 12 is: ");
+     client.println((digitalRead(iopinB)==1) ? "ON" : "OFF");
 
    // Control bottons
-     client.write("<input style='height: 35px;' name='button1' value='Toggle pin 12' type='submit'> \n");
-     client.write("<input style='height: 35px;' name='button2' value='Toggle Flash' type='submit'> \n");
-     client.write("<input style='height: 35px;' name='button4' value='Change Resolution' type='submit'><br> \n");
+     client.println("<br><br><input style='height: 35px;' name='button1' value='Toggle Output Pin' type='submit'>");
+     client.println("<input style='height: 35px;' name='button2' value='Toggle Light' type='submit'>");
+     client.println("<input style='height: 35px;' name='button3' value='Toggle flash' type='submit'>");
+     client.println("<input style='height: 35px;' name='button4' value='Change Resolution' type='submit'>");
 
    // Timelapse setting
-     client.print("<br>Timelapse recording is ");
-     client.print((timelapseEnabled==1) ? "enabled" : "disabled");
-     client.printf(", set to capture an image every: <input type='number' style='width: 50px' name='timelapse' min='1' max='3600' value='%d'> seconds \n", timeBetweenShots);
-     client.write("<input style='height: 35px;' name='buttonE' value='Enable/disable timelapse recording' type='submit'> \n");
+     // button that changes colour
+        client.print("<br><br><input name='buttonE' type='submit' style='height: 35px; ");
+        if (timelapseEnabled) {
+          client.print("color:red;' value='Stop recording'>, Images are being captured every");
+        } else {
+          client.print("' value='Start recording'>, Images will be captured every");
+        }
+     client.printf(" <input type='number' style='width: 50px' name='timelapse' min='1' max='3600' value='%d'> seconds \n", timeBetweenShots);
 
    // Image setting controls
-     client.write("<br><br>CAMERA SETTINGS: \n");
+     client.println("<br><br>CAMERA SETTINGS: ");
      client.printf("Exposure: <input type='number' style='width: 50px' name='exp' min='0' max='1200' value='%d'>  \n", cameraImageExposure);
      client.printf("Gain: <input type='number' style='width: 50px' name='gain' min='0' max='30' value='%d'>\n", cameraImageGain);
-     client.write(" - Set both to zero for auto adjust<br>\n");
+     client.println(" - Set both to zero for auto adjust");
 
    // links to the other pages available
-     client.write("<br>LINKS: \n");
-     client.write("<a href='/photo'>Capture an image</a> - \n");
-     client.write("<a href='/img'>View stored image</a> - \n");
-     client.write("<a href='/stream'>Live stream</a> - \n");
-     client.write("<a href='/test'>Testing Page</a><br>\n");
+     client.println("<br><br>LINKS: ");
+     client.println("<a href='/photo'>Capture an image</a> - ");
+     client.println("<a href='/stream'>Live stream</a> - ");
+     client.println("<a href='/test'>Testing Page</a><br>");
 
     // capture and show a jpg image
-      client.write("<br><a href='/jpg'>");         // make it a link
-      client.write("<img src='/jpg' /> </a>");     // show image from http://x.x.x.x/jpg
+      client.print("<br><a href='/jpg'>");           // make it a link
+      client.println("<img src='/jpg' /> </a>");     // show image from http://x.x.x.x/jpg
 
-    // instructions
-      client.print("<br><br>Note: You can use FFMpeg to combine the JPG files in to a MP4 video with the command:<br>:");
-      client.print(" ffmpeg -framerate 10 -pattern_type glob -i '*.jpg' -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p timelapse.mp4");
+    // image resolution
+      client.println("<br>Image size: " + ImageResDetails);
+
+    // sketch info
+      client.println(" - Sketch source: https://github.com/alanesq/misc/blob/main/esp32cam-timelapse.cpp");
+
 
  // --------------------------------------------------------------------
 
@@ -854,57 +870,6 @@ void handlePhoto() {
    sendFooter(client);
 
 }  // handlePhoto
-
-
-
-// ----------------------------------------------------------------
-// -display image stored on sd card i.e. http://x.x.x.x/img?img=x
-// ----------------------------------------------------------------
-// Display a previously stored image, default image = most recent
-// returns 1 if image displayed ok
-
-bool handleImg() {
-
-   WiFiClient client = server.client();                 // open link with client
-   bool pRes = 0;
-
-   // log page request including clients IP
-     IPAddress cIP = client.remoteIP();
-     if (serialDebug) Serial.println("Display stored image requested by " + cIP.toString());
-
-   int imgToShow = imageCounter;                        // default to showing most recent file
-
-   // get image number from url parameter
-     if (server.hasArg("img") && sdcardPresent) {
-       String Tvalue = server.arg("img");               // read value
-       imgToShow = Tvalue.toInt();                      // convert string to int
-       if (imgToShow < 1 || imgToShow > imageCounter) imgToShow = imageCounter;    // validate image number
-     }
-
-   // if stored on sd card
-   if (serialDebug) Serial.printf("Displaying image #%d from sd card", imgToShow);
-
-   String tFileName = "/img/" + String(imgToShow) + ".jpg";
-   fs::FS &fs = SD_MMC;                                 // sd card file system
-   File timg = fs.open(tFileName, "r");
-   if (timg) {
-       size_t sent = server.streamFile(timg, "image/jpeg");     // send the image
-       timg.close();
-       pRes = 1;                                                // flag sucess
-   } else {
-     if (serialDebug) Serial.println("Error: image file not found");
-     sendHeader(client, "Display stored image");
-     client.write("<p>Error: Image not found</p></html>\n");
-     client.write("<br><a href='/'>Return</a>\n");       // link back
-     sendFooter(client);     // close web page
-   }
-
-   return pRes;
-
-}  // handleImg
-
-
-// ******************************************************************************************************************
 
 
 // ----------------------------------------------------------------
@@ -977,14 +942,16 @@ bool handleJPG() {
 
     WiFiClient client = server.client();          // open link with client
     char buf[32];
-    camera_fb_t * fb = NULL;                      // pointer for image frame buffer
 
     // capture the jpg image from camera
-        fb = esp_camera_fb_get();
+        camera_fb_t * fb = esp_camera_fb_get();
         if (!fb) {
           if (serialDebug) Serial.println("Error: failed to capture image");
           return 0;
         }
+
+    // store image resolution info.
+      ImageResDetails = String(fb->width) + "x" + String(fb->height);
 
     // html to send a jpg
       const char HEADER[] = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n";
