@@ -58,7 +58,7 @@
 // ---------------------------------------------------------------
 
  const char* stitle = "ESP32Cam-timelapse";             // title of this sketch
- const char* sversion = "21Jan22";                      // Sketch version
+ const char* sversion = "22Jan22";                      // Sketch version
 
  const uint32_t wifiTimeout = 15;                       // timeout when connecting to wifi in seconds
 
@@ -625,11 +625,11 @@ bool storeImage() {
    int currentBrightness = brightLEDbrightness;
    if (flashRequired) brightLed(255);   // change LED brightness (0 - 255)
    camera_fb_t *fb = esp_camera_fb_get();             // capture image frame from camera
+   if (flashRequired) brightLed(currentBrightness);   // change LED brightness back to previous state
    if (!fb) {
      if (serialDebug) Serial.println("Error: Camera capture failed");
      return 0;
    }
- if (flashRequired) brightLed(currentBrightness);   // change LED brightness back to previous state
 
  // save the image to sd card
    if (serialDebug) Serial.printf("Storing image #%d to sd card \n", imageCounter);
@@ -787,21 +787,21 @@ void handleRoot() {
      client.print("<br>Output pin 12 is: ");
      client.println((digitalRead(iopinB)==1) ? "ON" : "OFF");
 
-   // Control bottons
+   // Timelapse
+     // button that changes depending on state
+        client.print("<br><br><input name='buttonE' type='submit' style='height: 35px; ");
+        if (timelapseEnabled) {
+          client.print("color:red;' value='Stop recording'> Images are being captured every");
+        } else {
+          client.print("' value='Start recording'> Images will be captured every");
+        }
+     client.printf(" <input type='number' style='width: 50px' name='timelapse' min='1' max='3600' value='%d'> seconds \n", timeBetweenShots);
+
+   // Misc bottons
      client.println("<br><br><input style='height: 35px;' name='button1' value='Toggle Output Pin' type='submit'>");
      client.println("<input style='height: 35px;' name='button2' value='Toggle Light' type='submit'>");
      client.println("<input style='height: 35px;' name='button3' value='Toggle flash' type='submit'>");
      client.println("<input style='height: 35px;' name='button4' value='Change Resolution' type='submit'>");
-
-   // Timelapse setting
-     // button that changes colour
-        client.print("<br><br><input name='buttonE' type='submit' style='height: 35px; ");
-        if (timelapseEnabled) {
-          client.print("color:red;' value='Stop recording'>, Images are being captured every");
-        } else {
-          client.print("' value='Start recording'>, Images will be captured every");
-        }
-     client.printf(" <input type='number' style='width: 50px' name='timelapse' min='1' max='3600' value='%d'> seconds \n", timeBetweenShots);
 
    // Image setting controls
      client.println("<br><br>CAMERA SETTINGS: ");
@@ -811,7 +811,7 @@ void handleRoot() {
 
    // links to the other pages available
      client.println("<br><br>LINKS: ");
-     client.println("<a href='/photo'>Capture an image</a> - ");
+     client.println("<a href='/photo'>Capture single image</a> - ");
      client.println("<a href='/stream'>Live stream</a> - ");
      client.println("<a href='/test'>Testing Page</a><br>");
 
@@ -856,12 +856,10 @@ void handlePhoto() {
    sendHeader(client, "Capture and save image");
 
  // html body
-   if (sRes == 2) {
-       client.printf("<p>Image saved to sd card as image number %d </p>\n", imageCounter);
-   } else if (sRes == 1) {
-       client.write("<p>Image saved in Spiffs</p>\n");
+   if (sRes == 1) {
+       client.printf("<p>Image saved to sd card as image number %d </p>\n", imageCounter - 1);
    } else {
-       client.write("<p>Error: Failed to save image</p>\n");
+       client.write("<p>Error: Failed to save image to sd card</p>\n");
    }
 
    client.write("<a href='/'>Return</a>\n");       // link back
