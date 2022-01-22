@@ -62,7 +62,7 @@
 
  const uint32_t wifiTimeout = 15;                       // timeout when connecting to wifi in seconds
 
- const bool serialDebug = 0;                            // show debug info. on serial port (1=enabled, disable if using pins 1 and 3 as gpio)
+ const bool serialDebug = 1;                            // show debug info. on serial port (1=enabled, disable if using pins 1 and 3 as gpio)
 
  // Camera related
    bool flashRequired = 0;                              // If flash to be used when capturing image (1 = yes)
@@ -609,6 +609,29 @@ void changeResolution(framesize_t tRes = FRAMESIZE_96X96) {
 }
 
 
+// ----------------------------------------------------------------
+// -delete all images on sd card (i.e. all files in '/img' folder)
+// ----------------------------------------------------------------
+void deleteAllImages() {
+  if (!sdcardPresent) return;
+  imageCounter = 0;
+  fs::FS &fs = SD_MMC;                        // sd card file system
+  if (serialDebug) Serial.println("Deleting all images on sd card");
+  File root = fs.open("/img");
+  while(1) {
+    File entry =  root.openNextFile();
+    if (!entry) break;   // stop
+    if (entry.isDirectory()) {
+      if (serialDebug) Serial.println("directory found");
+    } else {
+      // delete file
+      if (serialDebug) Serial.println("Deleting file " + String(entry.name()));
+      fs.remove(String(entry.name()));
+    }
+  }  // while loop
+}
+
+
 // ******************************************************************************************************************
 
 
@@ -702,6 +725,11 @@ void handleRoot() {
      if (server.hasArg("button4")) {
        if (serialDebug) Serial.println("Button 4 pressed");
        changeResolution();   // cycle through some options
+     }
+
+   // if button5 was pressed (elete all images
+     if (server.hasArg("button5")) {
+       deleteAllImages();
      }
 
    // if buttonE was pressed (enable/disable timelapse recording)
@@ -802,6 +830,7 @@ void handleRoot() {
      client.println("<input style='height: 35px;' name='button2' value='Toggle Light' type='submit'>");
      client.println("<input style='height: 35px;' name='button3' value='Toggle flash' type='submit'>");
      client.println("<input style='height: 35px;' name='button4' value='Change Resolution' type='submit'>");
+     client.println("<input style='height: 35px;' name='button5' value='Delete all images' type='submit'>");
 
    // Image setting controls
      client.println("<br><br>CAMERA SETTINGS: ");
