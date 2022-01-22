@@ -60,9 +60,14 @@
  const char* stitle = "ESP32Cam-timelapse";             // title of this sketch
  const char* sversion = "22Jan22";                      // Sketch version
 
- const uint32_t wifiTimeout = 15;                       // timeout when connecting to wifi in seconds
-
  const bool serialDebug = 1;                            // show debug info. on serial port (1=enabled, disable if using pins 1 and 3 as gpio)
+
+ // Access point wifi settings (used if unable to connect to wifi)
+  const uint32_t wifiTimeout = 15;                      // timeout when connecting to wifi in seconds
+  const char *APSSID = "timelapse";
+  const char *APPWD = "12345678";
+  IPAddress Ip(192, 168, 1, 1);                         // ip address
+  IPAddress NMask(255, 255, 255, 0);                    // net mask
 
  // Camera related
    bool flashRequired = 0;                              // If flash to be used when capturing image (1 = yes)
@@ -131,10 +136,6 @@
 #include <HTTPClient.h>
 #include "driver/ledc.h"        // used to configure pwm on illumination led
 
-// spiffs used to store images if no sd card present
- #include <SPIFFS.h>
- #include <FS.h>                // gives file access on spiffs
-
 WebServer server(80);           // serve web pages on port 80
 
 // Used to disable brownout detection
@@ -147,20 +148,12 @@ WebServer server(80);           // serve web pages on port 80
  #include <FS.h>                             // gives file access
  #define SD_CS 5                             // sd chip select pin = 5
 
-// MCP23017 IO expander on pins 12 and 13 (optional)
- #if useMCP23017 == 1
-   #include <Wire.h>
-   #include "Adafruit_MCP23017.h"
-   Adafruit_MCP23017 mcp;
-   // Wire.setClock(1700000); // set frequency to 1.7mhz
- #endif
-
 // Define some global variables:
  uint32_t lastStatus = millis();           // last time status light changed status (to flash all ok led)
  bool sdcardPresent;                       // flag if an sd card is detected
- int imageCounter;                         // image file name on sd card counter
+ uint32_t imageCounter;                    // image file name on sd card counter
  String spiffsFilename = "/image.jpg";     // image name to use when storing in spiffs
- int timeBetweenShots = 30;                // time between image captures (seconds)
+ uint16_t timeBetweenShots = 30;           // time between image captures (seconds)
  bool timelapseEnabled = 0;                // enable timelapse recording
  String ImageResDetails = "Unknown";       // image resolution info
 
@@ -189,7 +182,6 @@ void setup() {
 
  // small indicator led on rear of esp32cam board
    pinMode(indicatorLED, OUTPUT);
-   digitalWrite(indicatorLED,HIGH);
 
  // Connect to wifi
    digitalWrite(indicatorLED,LOW);               // small indicator led on
@@ -204,11 +196,26 @@ void setup() {
        delay(500);
        if (serialDebug) Serial.print(".");
    }
-   if (serialDebug) {
-     Serial.print("\nWiFi connected, ");
-     Serial.print("IP address: ");
-     Serial.println(WiFi.localIP());
+
+   if (WiFi.status() == WL_CONNECTED) {
+      if (serialDebug) {
+        Serial.print("\nWiFi connected, ");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+      }
+   } else {
+      // not connected to wifi so set up as an access point instead
+        WiFi.mode(WIFI_AP);
+        if (serialDebug) Serial.print("Unable to connect to wifi so starting access point: ");
+        if (serialDebug) Serial.print(APSSID);
+        WiFi.softAP(APSSID, APPWD);
+        delay(150);
+        WiFi.softAPConfig(Ip, Ip, NMask);
+        IPAddress myIP = WiFi.softAPIP();
+        if (serialDebug) Serial.print("Started - IP: ");
+        if (serialDebug) Serial.println(myIP);
    }
+
    server.begin();                               // start web server
    digitalWrite(indicatorLED,HIGH);              // small indicator led off
 
@@ -251,12 +258,12 @@ void setup() {
            sdcardPresent = 0;                    // flag no sd card available
        } else {
          // valid sd card detected
-         uint16_t SDfreeSpace = (uint64_t)(SD_MMC.totalBytes() - SD_MMC.usedBytes()) / (1024 * 1024);
+         uint32_t SDfreeSpace = (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / (1024 * 1024);
          if (serialDebug) Serial.printf("SD Card found, free space = %dMB \n", SDfreeSpace);
          sdcardPresent = 1;                      // flag sd card available
        }
      }
-     fs::FS &fs = SD_MMC;                        // sd card file system
+     fs::FS &fs = SD_MMC;                 // sd card file system
      if (!sdcardPresent) {
         if (serialDebug) Serial.println("Error: no sd card detected");
      }
@@ -294,7 +301,7 @@ setupFlashPWM();    // configure PWM for the illumination LED
    if (serialDebug) Serial.println("\nStarted...");
    flashLED(2);     // flash the onboard indicator led
    brightLed(64);    // change bright LED
-   delay(200);
+   delay(100);
    brightLed(0);    // change bright LED
 
 }  // setup
@@ -641,11 +648,11 @@ void deleteAllImages() {
 
 bool storeImage() {
 
- byte sRes = 0;                // result flag
- fs::FS &fs = SD_MMC;          // sd card file system
+byte sRes = 0;                // result flag
+fs::FS &fs = SD_MMC;          // sd card file system
 
  // capture the image from camera
-   int currentBrightness = brightLEDbrightness;
+   uint8_t currentBrightness = brightLEDbrightness;
    if (flashRequired) brightLed(255);   // change LED brightness (0 - 255)
    camera_fb_t *fb = esp_camera_fb_get();             // capture image frame from camera
    if (flashRequired) brightLed(currentBrightness);   // change LED brightness back to previous state
@@ -675,6 +682,13 @@ bool storeImage() {
    }
 
  esp_camera_fb_return(fb);        // return frame so memory can be released
+
+// check free space on sd card and stop capture if under 500k
+   uint32_t SDfreeSpace = (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1024;
+   if (SDfreeSpace < 500 && timelapseEnabled) {
+     if (serialDebug) Serial.println("Capture turned off as very low on sd card space");
+     timelapseEnabled = 0;
+   }
 
  return sRes;
 
@@ -801,8 +815,13 @@ void handleRoot() {
     client.printf("<h1>%s</H1>\n", stitle);
 
    // sd card details
-     if (sdcardPresent) client.printf("SD Card detected - %d images stored\n", imageCounter);
-     else client.println("<p>Error: No SD Card detected");
+     if (sdcardPresent) {
+       uint32_t SDusedSpace = SD_MMC.usedBytes() / (1024 * 1024);
+       uint32_t SDtotalSpace = SD_MMC.totalBytes() / (1024 * 1024);
+       uint32_t SDfreeSpace = SDtotalSpace - SDusedSpace;
+       client.printf("SD Card: %d images stored, %dMB of space used out of %dMB, %dMB remaining\n", imageCounter, SDusedSpace, SDtotalSpace, SDfreeSpace);
+     }
+     else client.println("<p style='color:red;'>ERROR: NO SD CARD DETECTED");
 
    // illumination/flash led
      client.printf("<br>Illumination led brightness %d, Flash is ", brightLEDbrightness);
@@ -815,6 +834,12 @@ void handleRoot() {
      client.print("<br>Output pin 12 is: ");
      client.println((digitalRead(iopinB)==1) ? "ON" : "OFF");
 
+   // Image setting controls
+     client.println("<br><br>CAMERA SETTINGS: ");
+     client.printf("Exposure: <input type='number' style='width: 50px' name='exp' min='0' max='1200' value='%d'>  \n", cameraImageExposure);
+     client.printf("Gain: <input type='number' style='width: 50px' name='gain' min='0' max='30' value='%d'>\n", cameraImageGain);
+     client.println(" - Set both to zero for auto adjust");
+
    // Timelapse
      // button that changes depending on state
         client.print("<br><br><input name='buttonE' type='submit' style='height: 35px; ");
@@ -825,18 +850,15 @@ void handleRoot() {
         }
      client.printf(" <input type='number' style='width: 50px' name='timelapse' min='1' max='3600' value='%d'> seconds \n", timeBetweenShots);
 
+  // submit button
+     client.println(" <input type='submit' name='submit'>");
+
    // Misc bottons
      client.println("<br><br><input style='height: 35px;' name='button1' value='Toggle Output Pin' type='submit'>");
      client.println("<input style='height: 35px;' name='button2' value='Toggle Light' type='submit'>");
      client.println("<input style='height: 35px;' name='button3' value='Toggle flash' type='submit'>");
      client.println("<input style='height: 35px;' name='button4' value='Change Resolution' type='submit'>");
      client.println("<input style='height: 35px;' name='button5' value='Delete all images' type='submit'>");
-
-   // Image setting controls
-     client.println("<br><br>CAMERA SETTINGS: ");
-     client.printf("Exposure: <input type='number' style='width: 50px' name='exp' min='0' max='1200' value='%d'>  \n", cameraImageExposure);
-     client.printf("Gain: <input type='number' style='width: 50px' name='gain' min='0' max='30' value='%d'>\n", cameraImageGain);
-     client.println(" - Set both to zero for auto adjust");
 
    // links to the other pages available
      client.println("<br><br>LINKS: ");
@@ -1088,60 +1110,6 @@ void handleTest() {
 
 
 
-
-// demo of drawing on the camera image using javascript / html canvas
-//   could be of use to show area of interest on the image etc. - see
-// creat a DIV and put image in it with a html canvas on top of it
-  int imageWidth = 640;   // image dimensions on web page
-  int imageHeight = 480;
-  client.println("<div style='display:inline-block;position:relative;'>");
-  client.println("<img style='position:absolute;z-index:10;' src='/jpg' width='" + String(imageWidth) + "' height='" + String(imageHeight) + "' />");
-  client.println("<canvas style='position:relative;z-index:20;' id='myCanvas' width='" + String(imageWidth) + "' height='" + String(imageHeight) + "'></canvas>");
-  client.println("</div>");
-// javascript to draw on the canvas
-  client.println("<script>");
-  client.println("var imageWidth = " + String(imageWidth) + ";");
-  client.println("var imageHeight = " + String(imageHeight) + ";");
-  client.print (R"=====(
-    // connect to the canvas
-      var c = document.getElementById("myCanvas");
-      var ctx = c.getContext("2d");
-      ctx.strokeStyle = "red";
-    // draw on image
-      ctx.rect(imageWidth / 2, imageHeight / 2, 60, 40);                              // box
-      ctx.moveTo(20, 20); ctx.lineTo(200, 100);                                       // line
-      ctx.font = "30px Arial";  ctx.fillText("Hello World", 50, imageHeight - 50);    // text
-      ctx.stroke();
-   </script>\n)=====");
-
-
-/*
- // demo of how to request a web page
-   String page = "http://urlhere.com";   // url to request
-   String response;                             // reply will be stored here
-   int httpCode = requestWebPage(&page, &response);
-   // show results
-     client.println("Web page requested: '" + page + "' - http code: " + String(httpCode));
-     client.print("<xmp>'");     // enables the html code to be displayed
-     client.print(response);
-     client.println("'</xmp><br>");
-*/
-
-
-/*
-//  // demo useage of the mcp23017 io chipnote: this stops PWM on the flash working for some reason
-    #if useMCP23017 == 1
-      while(1) {
-          mcp.digitalWrite(0, HIGH);
-          int q = mcp.digitalRead(8);
-          client.print("<p>HIGH, input =" + String(q) + "</p>");
-          delay(1000);
-          mcp.digitalWrite(0, LOW);
-          client.print("<p>LOW</p>");
-          delay(1000);
-      }
-    #endif
-*/
 
 
  // -------------------------------------------------------------------
