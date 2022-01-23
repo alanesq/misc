@@ -51,16 +51,19 @@
    void setupFlashPWM();
    void changeResolution(framesize_t);
    void resetCamera(bool);
+   void handleData();
 
 
 // ---------------------------------------------------------------
 //                           -SETTINGS
 // ---------------------------------------------------------------
 
- const char* stitle = "ESP32Cam-timelapse";             // title of this sketch
- const char* sversion = "22Jan22";                      // Sketch version
+ const char* stitle = "ESP32Cam_time-lapse";            // title of this sketch
+ const char* sversion = "23Jan22";                      // Sketch version
 
  const bool serialDebug = 1;                            // show debug info. on serial port (1=enabled, disable if using pins 1 and 3 as gpio)
+
+ uint16_t datarefresh = 2000;                           // how often to refresh data on root web page (ms)
 
  // Access point wifi settings (used if unable to connect to wifi)
   const uint32_t wifiTimeout = 15;                      // timeout when connecting to wifi in seconds
@@ -221,6 +224,7 @@ void setup() {
 
  // define the web pages (i.e. call these procedures when url is requested)
    server.on("/", handleRoot);                   // root page
+   server.on("/data", handleData);               // suplies data to periodically update root (AJAX)
    server.on("/jpg", handleJPG);                 // capture image and send as jpg
    server.on("/stream", handleStream);           // stream live video
    server.on("/photo", handlePhoto);             // save image to sd card
@@ -560,8 +564,9 @@ void sendHeader(WiFiClient &client, String wTitle) {
     client.write("<html lang='en'>\n");
     client.write("<head>\n");
     client.write("<meta name='viewport' content='width=device-width, initial-scale=1.0'>\n");
-    client.write("<meta http-equiv='refresh' content='30'>\n");      // refresh page periodically
-    client.print("<title>" + wTitle + "</title> </head> <body>\n");
+    client.write("<meta http-equiv='refresh' content='30'>\n");      // refresh page periodically to update jpg
+    client.print("<title>" + wTitle + "</title> </head>\n");
+    client.write("<body style='color: black; background-color: yellow; text-align: center;'>\n");
 }
 
 
@@ -699,140 +704,169 @@ fs::FS &fs = SD_MMC;          // sd card file system
 
 
 // ----------------------------------------------------------------
+//            -Action any user input on root web page
+// ----------------------------------------------------------------
+
+void rootUserInput(WiFiClient &client) {
+
+  // if button1 was pressed (toggle io pin A)
+  //        Note:  if using an input box etc. you would read the value with the command:    String Bvalue = server.arg("demobutton1");
+
+  // if button1 was pressed (toggle io pin B)
+    if (server.hasArg("button1")) {
+      if (serialDebug) Serial.println("Button 1 pressed");
+      digitalWrite(iopinB,!digitalRead(iopinB));             // toggle output pin on/off
+    }
+
+  // if button2 was pressed (toggle flash LED)
+    if (server.hasArg("button2")) {
+      if (serialDebug) Serial.println("Button 2 pressed");
+      if (brightLEDbrightness == 0) brightLed(10);                // turn led on dim
+      else if (brightLEDbrightness == 10) brightLed(40);          // turn led on medium
+      else if (brightLEDbrightness == 40) brightLed(255);         // turn led on full
+      else brightLed(0);                                          // turn led off
+    }
+
+  // if button3 was pressed (Toggle flash)
+    if (server.hasArg("button3")) {
+      flashRequired = !flashRequired;
+      if (serialDebug) Serial.println("Flash toggled to: " + String(flashRequired));
+    }
+
+  // if button4 was pressed (change resolution)
+    if (server.hasArg("button4")) {
+      if (serialDebug) Serial.println("Button 4 pressed");
+      changeResolution();   // cycle through some options
+    }
+
+  // if button5 was pressed (elete all images
+    if (server.hasArg("button5")) {
+      deleteAllImages();
+    }
+
+  // if buttonE was pressed (enable/disable timelapse recording)
+    if (server.hasArg("buttonE")) {
+      if (timelapseEnabled) {
+        if (serialDebug) Serial.println("Button E pressed, disabling timelapse recording");
+        timelapseEnabled = 0;
+      } else {
+        if (serialDebug) Serial.println("Button E pressed, enabling timelapse recording");
+        timelapseEnabled = 1;
+      }
+    }
+
+  // if timelapse was adjusted - cameraImageExposure
+      if (server.hasArg("timelapse")) {
+        String Tvalue = server.arg("timelapse");   // read value
+        if (Tvalue != NULL) {
+          int val = Tvalue.toInt();
+          if (val > 0 && val <= 3600 && val != timeBetweenShots) {
+            if (serialDebug) Serial.printf("Exposure changed to %d\n", val);
+            timeBetweenShots = val;
+          }
+        }
+      }
+
+  // if exposure was adjusted - cameraImageExposure
+      if (server.hasArg("exp")) {
+        String Tvalue = server.arg("exp");   // read value
+        if (Tvalue != NULL) {
+          int val = Tvalue.toInt();
+          if (val >= 0 && val <= 1200 && val != cameraImageExposure) {
+            if (serialDebug) Serial.printf("Exposure changed to %d\n", val);
+            cameraImageExposure = val;
+            cameraImageSettings();           // Apply camera image settings
+          }
+        }
+      }
+
+   // if image gain was adjusted - cameraImageGain
+      if (server.hasArg("gain")) {
+        String Tvalue = server.arg("gain");   // read value
+          if (Tvalue != NULL) {
+            int val = Tvalue.toInt();
+            if (val >= 0 && val <= 31 && val != cameraImageGain) {
+              if (serialDebug) Serial.printf("Gain changed to %d\n", val);
+              cameraImageGain = val;
+              cameraImageSettings();          // Apply camera image settings
+            }
+          }
+       }
+}
+
+
+// ----------------------------------------------------------------
 //       -root web page requested    i.e. http://x.x.x.x/
 // ----------------------------------------------------------------
 // web page with control buttons, links etc.
 
 void handleRoot() {
 
- getNTPtime(2);                                             // refresh current time from NTP server
- WiFiClient client = server.client();                       // open link with client
+  getNTPtime(2);                                             // refresh current time from NTP server
+  WiFiClient client = server.client();                       // open link with client
 
-
- // Action any user input on web page
-
-   // if button1 was pressed (toggle io pin A)
-   //        Note:  if using an input box etc. you would read the value with the command:    String Bvalue = server.arg("demobutton1");
-
-   // if button1 was pressed (toggle io pin B)
-     if (server.hasArg("button1")) {
-       if (serialDebug) Serial.println("Button 1 pressed");
-       digitalWrite(iopinB,!digitalRead(iopinB));             // toggle output pin on/off
-     }
-
-   // if button2 was pressed (toggle flash LED)
-     if (server.hasArg("button2")) {
-       if (serialDebug) Serial.println("Button 2 pressed");
-       if (brightLEDbrightness == 0) brightLed(10);                // turn led on dim
-       else if (brightLEDbrightness == 10) brightLed(40);          // turn led on medium
-       else if (brightLEDbrightness == 40) brightLed(255);         // turn led on full
-       else brightLed(0);                                          // turn led off
-     }
-
-   // if button3 was pressed (Toggle flash)
-     if (server.hasArg("button3")) {
-       flashRequired = !flashRequired;
-       if (serialDebug) Serial.println("Flash toggled to: " + String(flashRequired));
-     }
-
-   // if button4 was pressed (change resolution)
-     if (server.hasArg("button4")) {
-       if (serialDebug) Serial.println("Button 4 pressed");
-       changeResolution();   // cycle through some options
-     }
-
-   // if button5 was pressed (elete all images
-     if (server.hasArg("button5")) {
-       deleteAllImages();
-     }
-
-   // if buttonE was pressed (enable/disable timelapse recording)
-     if (server.hasArg("buttonE")) {
-       if (timelapseEnabled) {
-         if (serialDebug) Serial.println("Button E pressed, disabling timelapse recording");
-         timelapseEnabled = 0;
-       } else {
-         if (serialDebug) Serial.println("Button E pressed, enabling timelapse recording");
-         timelapseEnabled = 1;
-       }
-     }
-
-   // if timelapse was adjusted - cameraImageExposure
-       if (server.hasArg("timelapse")) {
-         String Tvalue = server.arg("timelapse");   // read value
-         if (Tvalue != NULL) {
-           int val = Tvalue.toInt();
-           if (val > 0 && val <= 3600 && val != timeBetweenShots) {
-             if (serialDebug) Serial.printf("Exposure changed to %d\n", val);
-             timeBetweenShots = val;
-           }
-         }
-       }
-
-   // if exposure was adjusted - cameraImageExposure
-       if (server.hasArg("exp")) {
-         String Tvalue = server.arg("exp");   // read value
-         if (Tvalue != NULL) {
-           int val = Tvalue.toInt();
-           if (val >= 0 && val <= 1200 && val != cameraImageExposure) {
-             if (serialDebug) Serial.printf("Exposure changed to %d\n", val);
-             cameraImageExposure = val;
-             cameraImageSettings();           // Apply camera image settings
-           }
-         }
-       }
-
-    // if image gain was adjusted - cameraImageGain
-       if (server.hasArg("gain")) {
-         String Tvalue = server.arg("gain");   // read value
-           if (Tvalue != NULL) {
-             int val = Tvalue.toInt();
-             if (val >= 0 && val <= 31 && val != cameraImageGain) {
-               if (serialDebug) Serial.printf("Gain changed to %d\n", val);
-               cameraImageGain = val;
-               cameraImageSettings();          // Apply camera image settings
-             }
-           }
-        }
-
+  rootUserInput(client);                                     // Action any user input from this web page
 
   // html header
    sendHeader(client, "ESP32Cam timelapse recorder");
-   client.write("<FORM action='/' method='post'>\n");            // used by the buttons in the html (action = the web page to send it to
+   client.write("<FORM action='/' method='post'>\n");        // used by the buttons in the html (action = the web page to send it to
 
 
  // --------------------------------------------------------------------
 
 
  // html main body
- //                    Info on the arduino ethernet library:  https://www.arduino.cc/en/Reference/Ethernet
- //                                            Info in HTML:  https://www.w3schools.com/html/
- //     Info on Javascript (can be inserted in to the HTML):  https://www.w3schools.com/js/default.asp
- //                               Verify your HTML is valid:  https://validator.w3.org/
-
 
    // Page title
-    client.printf("<h1>%s</H1>\n", stitle);
+    client.printf("<h1 style='color:red;'>%s</H1>\n", stitle);
 
-   // sd card details
-     if (sdcardPresent) {
-       uint32_t SDusedSpace = SD_MMC.usedBytes() / (1024 * 1024);
-       uint32_t SDtotalSpace = SD_MMC.totalBytes() / (1024 * 1024);
-       uint32_t SDfreeSpace = SDtotalSpace - SDusedSpace;
-       client.printf("SD Card: %d images stored, %dMB of space used out of %dMB, %dMB remaining\n", imageCounter, SDusedSpace, SDtotalSpace, SDfreeSpace);
-     }
-     else client.println("<p style='color:red;'>ERROR: NO SD CARD DETECTED");
 
-   // illumination/flash led
-     client.printf("<br>Illumination led brightness %d, Flash is ", brightLEDbrightness);
-     client.println((flashRequired==1) ? "enabled" : "disabled");
+    // ---------------------------------------------------------------------------------------------
+    //  info which is periodically updated usin AJAX - https://www.w3schools.com/xml/ajax_intro.asp
 
-   // Current real time
-     client.println("<br>Current time: " + localTime());
+      // sd card
+        if (!sdcardPresent) {
+          client.println("<p style='color:red;'>ERROR: NO SD CARD DETECTED</p>");
+        } else {
+          client.println("SD Card: <span id=uImages> - </span> images stored, <span id=uUsed> - </span>MB used , <span id=uRemain> - </span>MB remaining\n");
+        }
 
-   // gpio pin status
-     client.print("<br>Output pin 12 is: ");
-     client.println((digitalRead(iopinB)==1) ? "ON" : "OFF");
+      // illumination/flash led
+        client.println("<br>Illumination led brightness=<span id=uBrightness> - </span>, Flash is <span id=uFlash> - </span>");
+
+      // Current real time
+        client.println("<br>Current time: <span id=uTime> - </span>");
+
+      // gpio pin status
+        client.print("<br>GPIO output pin 12 is: <span id=uGPIO> - </span>");
+
+
+      // Javascript - to periodically update above getting info from http://x.x.x.x/data
+        client.printf(R"=====(
+           <script>
+              function getData() {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                  var receivedArr = this.responseText.split(',');
+                  document.getElementById('uImages').innerHTML = receivedArr[0];
+                  document.getElementById('uUsed').innerHTML = receivedArr[1];
+                  document.getElementById('uRemain').innerHTML = receivedArr[2];
+                  document.getElementById('uBrightness').innerHTML = receivedArr[3];
+                  document.getElementById('uFlash').innerHTML = receivedArr[4];
+                  document.getElementById('uTime').innerHTML = receivedArr[5];
+                  document.getElementById('uGPIO').innerHTML = receivedArr[6];
+                }
+              };
+              xhttp.open('GET', 'data', true);
+              xhttp.send();}
+              getData();
+              setInterval(function() { getData(); }, %d);
+           </script>
+        )=====", datarefresh);
+
+    // ---------------------------------------------------------------------------------------------
+
 
    // Image setting controls
      client.println("<br><br>CAMERA SETTINGS: ");
@@ -840,18 +874,24 @@ void handleRoot() {
      client.printf("Gain: <input type='number' style='width: 50px' name='gain' min='0' max='30' value='%d'>\n", cameraImageGain);
      client.println(" - Set both to zero for auto adjust");
 
-   // Timelapse
-     // button that changes depending on state
-        client.print("<br><br><input name='buttonE' type='submit' style='height: 35px; ");
-        if (timelapseEnabled) {
-          client.print("color:red;' value='Stop recording'> Images are being captured every");
-        } else {
-          client.print("' value='Start recording'> Images will be captured every");
-        }
-     client.printf(" <input type='number' style='width: 50px' name='timelapse' min='1' max='3600' value='%d'> seconds \n", timeBetweenShots);
+   // Timelapse info
+      if (timelapseEnabled) {
+        client.print("<br>Images are being captured every");
+      } else {
+        client.print("<br>Images will be captured every");
+      }
+      client.printf(" <input type='number' style='width: 50px' name='timelapse' min='1' max='3600' value='%d'> seconds \n", timeBetweenShots);
 
-  // submit button
-     client.println(" <input type='submit' name='submit'>");
+    // submit button
+       client.println(" <input type='submit' name='submit' value='Submit change / Refresh Image'>");
+
+   // Timelapse button
+     client.print("<br><br><input name='buttonE' type='submit' style='height: 45px; width: 130px; ");
+     if (timelapseEnabled) {
+       client.print("color:red;' value='Stop recording'>");
+     } else {
+       client.print("' value='Start recording'>");
+     }
 
    // Misc bottons
      client.println("<br><br><input style='height: 35px;' name='button1' value='Toggle Output Pin' type='submit'>");
@@ -862,12 +902,12 @@ void handleRoot() {
 
    // links to the other pages available
      client.println("<br><br>LINKS: ");
-     client.println("<a href='/photo'>Capture single image</a> - ");
-     client.println("<a href='/stream'>Live stream</a> - ");
-     client.println("<a href='/test'>Testing Page</a><br>");
+     client.println("<a href='/photo'>CAPTURE SINGLE IMAGE</a> - ");
+     client.println("<a href='/stream'>STREAM VIDEO</a> - ");
+     client.println("<a href='/test'>TESTING PAGE</a>");
 
     // capture and show a jpg image
-      client.print("<br><a href='/jpg'>");           // make it a link
+      client.print("<br><br><a href='/jpg'>");           // make it a link
       client.println("<img src='/jpg' /> </a>");     // show image from http://x.x.x.x/jpg
 
     // image resolution
@@ -881,8 +921,44 @@ void handleRoot() {
 
 
  sendFooter(client);     // close web page
-
 }  // handleRoot
+
+
+// ----------------------------------------------------------------
+//     -data web page requested     i.e. http://x.x.x.x/data
+// ----------------------------------------------------------------
+// suplies changing info to update root web page as comma seperated String
+
+void handleData(){
+
+  // sd sdcard
+    uint32_t SDusedSpace = 0;
+    uint32_t SDtotalSpace = 0;
+    uint32_t SDfreeSpace = 0;
+    if (sdcardPresent) {
+      SDusedSpace = SD_MMC.usedBytes() / (1024 * 1024);
+      SDtotalSpace = SD_MMC.totalBytes() / (1024 * 1024);
+      SDfreeSpace = SDtotalSpace - SDusedSpace;
+    }
+
+   String reply = "";
+    reply += String(SDusedSpace);
+    reply += ",";
+    reply += String(SDtotalSpace);
+    reply += ",";
+    reply += String(SDfreeSpace);
+    reply += ",";
+    reply += String(brightLEDbrightness);
+    reply += ",";
+    reply += (flashRequired==1) ? "enabled" : "disabled";
+    reply += ",";
+    reply += localTime();
+    reply += ",";
+    reply += (digitalRead(iopinB)==1) ? "ON" : "OFF";
+    //reply += ",";
+
+   server.send(200, "text/plane", reply); //Send millis value only to client ajax request
+}
 
 
 // ******************************************************************************************************************
