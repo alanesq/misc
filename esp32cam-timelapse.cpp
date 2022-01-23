@@ -5,7 +5,7 @@
 *
 *                                     Tested with ESP32 board manager version  1.0.6
 *
-*      Note:  You can use ffmpeg to combine the resulting files in to a Video
+*      Note:  You can use ffmpeg to combine the resulting files in to a Video - https://www.ffmpeg.org/
 *             command = ffmpeg -framerate 10 -pattern_type glob -i '*.jpg' -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p timelapse.mp4
 *
 *
@@ -58,12 +58,12 @@
 //                           -SETTINGS
 // ---------------------------------------------------------------
 
- const char* stitle = "ESP32Cam_time-lapse";            // title of this sketch
+ const char* stitle = "ESP32Cam_Timelapse";            // title of this sketch
  const char* sversion = "23Jan22";                      // Sketch version
 
  const bool serialDebug = 1;                            // show debug info. on serial port (1=enabled, disable if using pins 1 and 3 as gpio)
 
- uint16_t datarefresh = 2000;                           // how often to refresh data on root web page (ms)
+ uint16_t datarefresh = 2200;                           // how often to refresh data on root web page (ms)
 
  // Access point wifi settings (used if unable to connect to wifi)
   const uint32_t wifiTimeout = 15;                      // timeout when connecting to wifi in seconds
@@ -564,7 +564,7 @@ void sendHeader(WiFiClient &client, String wTitle) {
     client.write("<html lang='en'>\n");
     client.write("<head>\n");
     client.write("<meta name='viewport' content='width=device-width, initial-scale=1.0'>\n");
-    client.write("<meta http-equiv='refresh' content='30'>\n");      // refresh page periodically to update jpg
+    //client.write("<meta http-equiv='refresh' content='30'>\n");      // refresh page periodically to update jpg
     client.print("<title>" + wTitle + "</title> </head>\n");
     client.write("<body style='color: black; background-color: yellow; text-align: center;'>\n");
 }
@@ -831,6 +831,9 @@ void handleRoot() {
           client.println("SD Card: <span id=uImages> - </span> images stored, <span id=uUsed> - </span>MB used , <span id=uRemain> - </span>MB remaining\n");
         }
 
+      // image resolution
+        client.println("<br>Image size: <span id=uRes> - </span>");
+
       // illumination/flash led
         client.println("<br>Illumination led brightness=<span id=uBrightness> - </span>, Flash is <span id=uFlash> - </span>");
 
@@ -852,10 +855,11 @@ void handleRoot() {
                   document.getElementById('uImages').innerHTML = receivedArr[0];
                   document.getElementById('uUsed').innerHTML = receivedArr[1];
                   document.getElementById('uRemain').innerHTML = receivedArr[2];
-                  document.getElementById('uBrightness').innerHTML = receivedArr[3];
-                  document.getElementById('uFlash').innerHTML = receivedArr[4];
-                  document.getElementById('uTime').innerHTML = receivedArr[5];
-                  document.getElementById('uGPIO').innerHTML = receivedArr[6];
+                  document.getElementById('uRes').innerHTML = receivedArr[3];
+                  document.getElementById('uBrightness').innerHTML = receivedArr[4];
+                  document.getElementById('uFlash').innerHTML = receivedArr[5];
+                  document.getElementById('uTime').innerHTML = receivedArr[6];
+                  document.getElementById('uGPIO').innerHTML = receivedArr[7];
                 }
               };
               xhttp.open('GET', 'data', true);
@@ -908,14 +912,11 @@ void handleRoot() {
 
     // capture and show a jpg image
       client.print("<br><br><a href='/jpg'>");           // make it a link
-      client.println("<img src='/jpg' /> </a>");     // show image from http://x.x.x.x/jpg
-
-    // image resolution
-      client.println("<br>Image size: " + ImageResDetails);
+      client.println("<img src='/jpg' width='640' height='480'/> </a>");     // show image from http://x.x.x.x/jpg
 
     // sketch info
-      client.println(" - Sketch source: https://github.com/alanesq/misc/blob/main/esp32cam-timelapse.cpp");
-
+      client.println("<br><a href='https://github.com/alanesq/misc/blob/main/esp32cam-timelapse.cpp'>Sketch Source</a>");
+      client.println("<br>Create video from jpgs with: ffmpeg -framerate 6 -pattern_type glob -i '*.jpg' -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p timelapse.mp4");
 
  // --------------------------------------------------------------------
 
@@ -947,6 +948,8 @@ void handleData(){
     reply += String(SDusedSpace);       // space used on sd card
     reply += ",";
     reply += String(SDfreeSpace);       // space remaining on sd card
+    reply += ",";
+    reply += ImageResDetails;           // image resolution
     reply += ",";
     reply += String(brightLEDbrightness);   // illumination led brightness
     reply += ",";
