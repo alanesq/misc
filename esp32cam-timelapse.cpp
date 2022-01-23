@@ -886,7 +886,7 @@ void handleRoot() {
        client.println(" <input type='submit' name='submit' value='Submit change / Refresh Image'>");
 
    // Timelapse button
-     client.print("<br><br><input name='buttonE' type='submit' style='height: 45px; width: 130px; ");
+     client.print("<br><br><input name='buttonE' type='submit' style='height: 50px; width: 160px; ");
      if (timelapseEnabled) {
        client.print("color:red;' value='Stop recording'>");
      } else {
@@ -942,19 +942,19 @@ void handleData(){
     }
 
    String reply = "";
-    reply += String(SDusedSpace);
+    reply += String(imageCounter);      // images stored
     reply += ",";
-    reply += String(SDtotalSpace);
+    reply += String(SDusedSpace);       // space used on sd card
     reply += ",";
-    reply += String(SDfreeSpace);
+    reply += String(SDfreeSpace);       // space remaining on sd card
     reply += ",";
-    reply += String(brightLEDbrightness);
+    reply += String(brightLEDbrightness);   // illumination led brightness
     reply += ",";
-    reply += (flashRequired==1) ? "enabled" : "disabled";
+    reply += (flashRequired==1) ? "enabled" : "disabled";   // if flash is enabled
     reply += ",";
-    reply += localTime();
+    reply += localTime();                // current date/time
     reply += ",";
-    reply += (digitalRead(iopinB)==1) ? "ON" : "OFF";
+    reply += (digitalRead(iopinB)==1) ? "ON" : "OFF";       // output gpio pin status
     //reply += ",";
 
    server.send(200, "text/plane", reply); //Send millis value only to client ajax request
