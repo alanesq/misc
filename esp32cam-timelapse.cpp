@@ -63,7 +63,8 @@
 
  const bool serialDebug = 1;                            // show debug info. on serial port (1=enabled, disable if using pins 1 and 3 as gpio)
 
- uint16_t datarefresh = 2200;                           // how often to refresh data on root web page (ms)
+ uint16_t datarefresh = 2022;                           // how often to refresh data on root web page (ms)
+ uint16_t imagerefresh = 5000;                          // how often to refresh the image on root web page (ms)
 
  // Access point wifi settings (used if unable to connect to wifi)
   const uint32_t wifiTimeout = 15;                      // timeout when connecting to wifi in seconds
@@ -82,6 +83,7 @@
    #define PIXFORMAT PIXFORMAT_JPEG;                    // image format, Options =  YUV422, GRAYSCALE, RGB565, JPEG, RGB888
    int cameraImageExposure = 0;                         // Camera exposure (0 - 1200)   If gain and exposure both set to zero then auto adjust is enabled
    int cameraImageGain = 0;                             // Image gain (0 - 30)
+   int cameraImageBrightness = 0;                       // Image brightness (-2 to +2)
 
  const int TimeBetweenStatus = 600;                     // speed of flashing system running ok status light (milliseconds)
 
@@ -434,11 +436,13 @@ bool cameraImageSettings() {
        s->set_gain_ctrl(s, 1);                       // auto gain on
        s->set_exposure_ctrl(s, 1);                   // auto exposure on
        s->set_awb_gain(s, 1);                        // Auto White Balance enable (0 or 1)
+       s->set_brightness(s, cameraImageBrightness);  // (-2 to 2) - set brightness
    } else {
      // Apply manual settings
        s->set_gain_ctrl(s, 0);                       // auto gain off
        s->set_awb_gain(s, 1);                        // Auto White Balance enable (0 or 1)
        s->set_exposure_ctrl(s, 0);                   // auto exposure off
+       s->set_brightness(s, cameraImageBrightness);  // (-2 to 2) - set brightness
        s->set_agc_gain(s, cameraImageGain);          // set gain manually (0 - 30)
        s->set_aec_value(s, cameraImageExposure);     // set exposure manually  (0-1200)
    }
@@ -767,6 +771,19 @@ void rootUserInput(WiFiClient &client) {
         }
       }
 
+    // if brightness was adjusted - cameraImageBrightness
+        if (server.hasArg("bright")) {
+          String Tvalue = server.arg("bright");   // read value
+          if (Tvalue != NULL) {
+            int val = Tvalue.toInt();
+            if (val >= -2 && val <= 2 && val != cameraImageBrightness) {
+              if (serialDebug) Serial.printf("Brightness changed to %d\n", val);
+              cameraImageBrightness = val;
+              cameraImageSettings();           // Apply camera image settings
+            }
+          }
+        }
+
   // if exposure was adjusted - cameraImageExposure
       if (server.hasArg("exp")) {
         String Tvalue = server.arg("exp");   // read value
@@ -874,9 +891,10 @@ void handleRoot() {
 
    // Image setting controls
      client.println("<br><br>CAMERA SETTINGS: ");
-     client.printf("Exposure: <input type='number' style='width: 50px' name='exp' min='0' max='1200' value='%d'>  \n", cameraImageExposure);
-     client.printf("Gain: <input type='number' style='width: 50px' name='gain' min='0' max='30' value='%d'>\n", cameraImageGain);
-     client.println(" - Set both to zero for auto adjust");
+     client.printf("Brightness: <input type='number' style='width: 50px' name='bright' title='from -2 to +2' min='-2' max='2' value='%d'>  \n", cameraImageBrightness);
+     client.printf("Exposure: <input type='number' style='width: 50px' name='exp' title='from 0 to 1200' min='0' max='1200' value='%d'>  \n", cameraImageExposure);
+     client.printf("Gain: <input type='number' style='width: 50px' name='gain' title='from 0 to 30' min='0' max='30' value='%d'>\n", cameraImageGain);
+     client.println(" - Set exposure and gain to zero for auto adjust");
 
    // Timelapse info
       if (timelapseEnabled) {
@@ -912,7 +930,20 @@ void handleRoot() {
 
     // capture and show a jpg image
       client.print("<br><br><a href='/jpg'>");           // make it a link
-      client.println("<img src='/jpg' width='640' height='480'/> </a>");     // show image from http://x.x.x.x/jpg
+      client.println("<img id='image1' src='/jpg' width='320' height='240'/> </a>");     // show image from http://x.x.x.x/jpg
+
+    // javascript to refresh the image periodically
+      client.printf(R"=====(
+         <script>
+           function refreshImage(){
+               var timestamp = new Date().getTime();
+               var el = document.getElementById('image1');
+               var queryString = '?t=' + timestamp;
+               el.src = '/jpg' + queryString;
+           }
+           setInterval(function() { refreshImage(); }, %d);
+         </script>
+      )=====", imagerefresh);
 
     // sketch info
       client.println("<br><a href='https://github.com/alanesq/misc/blob/main/esp32cam-timelapse.cpp'>Sketch Source</a>");
@@ -945,9 +976,9 @@ void handleData(){
    String reply = "";
     reply += String(imageCounter);      // images stored
     reply += ",";
-    reply += String(SDusedSpace);       // space used on sd card
+    if (sdcardPresent) reply += String(SDusedSpace);       // space used on sd card
     reply += ",";
-    reply += String(SDfreeSpace);       // space remaining on sd card
+    if (sdcardPresent) reply += String(SDfreeSpace);       // space remaining on sd card
     reply += ",";
     reply += ImageResDetails;           // image resolution
     reply += ",";
