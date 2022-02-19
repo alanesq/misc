@@ -1,5 +1,7 @@
 /*
     RTOS tasks demo  - 22oct21
+    
+    see this sketch running in an emulator here: https://wokwi.com/arduino/projects/320578519529685587
 
     see: https://circuitdigest.com/microcontroller-projects/arduino-freertos-tutorial1-creating-freertos-task-to-blink-led-in-arduino-uno
          https://freertos.org/Documentation/RTOS_book.html
