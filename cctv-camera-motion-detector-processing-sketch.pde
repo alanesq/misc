@@ -1,6 +1,6 @@
 /*
     
-              Processing jpg image change monitor - 07Aug22
+              Processing jpg image change monitor - 08Aug22
               Monitors jpg images loaded via a URL and makes a sound if movement is detected
               
               Libraries used:
@@ -12,7 +12,8 @@
                                   Z = clear messages
                                   S = toggle sound
                                   D = toggle save image
-                                  F = toggle face detection   (disabled)
+                                  F = toggle face detection 
+                                +/- = Adjust trigger level
   
     from: https://github.com/alanesq/misc/blob/main/cctv-camera-motion-detector-processing-sketch.pde
                                                                                   alanesq@disroot.org
@@ -23,18 +24,22 @@
   String sTitle = "CCTV Movement Detector";          // Sketch title
   boolean saveImages = false;                        // default save images when motion detected (true or false)
   boolean soundEnabled = true;                       // default enable sound 
-  boolean faceDetectionEnabled = false;              // default enable face detection
-  int doubleSenseFace = 3;                           // only trigger face detected if is is sensed twice within this time period (seconds)
-  int sTextSize = 14;                                // on screen text size
-  int timeoutSetting = 10;                           // timeout (in minutes), activated by pressing 't' on keyboard
-  int motionImageTriggerMin = 300;                   // trigger level min (triggers if between min and max)
-  int triggerStep = 50;                              // trigger level adjustment step size
-  int doubleSenseTime = 3;                           // only trigger motion detected if is is sensed twice within this time period (seconds)
-  int motionImageTriggerMax = 99999;                 // trigger level max
-  int motionPixeltrigger = 60;                       // trigger level for movement detection of pixels
   int refresh = 2000;                                // how often to refresh image
+  int timeoutSetting = 10;                           // default timeout (in minutes), activated by pressing 't' on keyboard
+  int cDetections = 2;                               // consecutive motion detections required to trigger movement detected
   
+  // face detection
+  boolean faceDetectionEnabled = false;              // default enable face detection
+  
+  // motion detection
+  int motionImageTriggerMin = 200;                   // default trigger level min (triggers if between min and max)
+  int triggerStep = 50;                              // trigger level adjustment step size
+  int motionImageTriggerMax = 99999;                 // default trigger level max
+  int motionPixeltrigger = 50;                       // trigger level for movement detection of pixels
+  
+  // display
   int border = 8;                                    // screen border
+  int sTextSize = 14;                                // on screen text size
     
   // message area on screen
     int messageWidth = 200;
@@ -49,8 +54,6 @@
     int noOfCams = 3;                             // number of cameras in use
     // Note: to add or remove a camera modify the "noOfCams" value above, add or remove a settings section for the camera below and 
     //       add or remove a line for the camera in "setup()"
-    
-    camera[] cameras = new camera[noOfCams];      // create camera settings array (used to pass the settings to the camera object)
 
     // used below to size and position the images on the screen
       int _mainTop = 55;
@@ -62,6 +65,8 @@
       int _changeHeight = _changeWidth / 4 * 3;  
       int _imageSpacing = _imageWidth + border;
       int _changePad = abs((_imageWidth - _changeWidth) / 2);
+      
+    camera[] cameras = new camera[noOfCams];      //  used to pass the settings to the camera object
 
     //  camera 0 settings
       String cam0name = "Door";                            // camera 0 name (must be suitable for use in file name)
@@ -77,8 +82,8 @@
                   _mainTop + _camTop + _imageHeight + 24,  //                                       changeY
                   0,                                       // Select part of image to use           roiX
                   0,                                       //                                       roiY
-                  320,                                     //                                       roiW
-                  240                                      //                                       roiH
+                  _imageWidth,                             //                                       roiW
+                  _imageHeight                             //                                       roiH
                  };    
            
     //  camera 1 settings
@@ -95,8 +100,8 @@
                   _mainTop + _camTop + _imageHeight + 24,  //                                       changeY
                   0,                                       // Select part of image to use           roiX
                   0,                                       //                                       roiY
-                  320,                                     //                                       roiW
-                  240                                      //                                       roiH
+                  _imageWidth,                             //                                       roiW
+                  _imageHeight                             //                                       roiH
                  };    
 
     //  camera 2 settings
@@ -111,10 +116,10 @@
                   _changeHeight,                           //                                       changeHeight
                   _mainLeft + _changePad + _imageSpacing*2,//                                       changeX
                   _mainTop + _camTop + _imageHeight + 24,  //                                       changeY
-                  int(320 * 0.35),                         // Select part of image to use           roiX
-                  int(240 * 0.04),                         //                                       roiY
-                  int(320 * 0.33),                         //                                       roiW
-                  int(240 * 0.30)                          //                                       roiH
+                  int(_imageWidth * 0.40),                 // Select part of image to use           roiX
+                  int(_imageHeight * 0.05),                //                                       roiY
+                  int(_imageWidth * 0.40),                 //                                       roiW
+                  int(_imageHeight * 0.35)                 //                                       roiH
                  };                  
 
 // ----------------------------------------------------------------------------------  
@@ -127,13 +132,10 @@ import processing.sound.*;
 SoundFile alarmSound, faceSound, movementSound;
 
 int timer = millis();             // timer for updating the image
-int motionLevel = 0;              // current motion trigger level
 int timeoutTimer = -1;            // timeout counter
 ArrayList<String> message = new ArrayList<String>();        // messages stored in this array
 boolean keyReady = true;          // flag to stop repeats on keyboard press
 Rectangle[] faces;                // used by face detection
-int lastMovementTime = 0;         // last time movement was sensed in an image
-int lastMovementFace = 0       ;  // last time face was sensed in an image
 
 // ----------------------------------------------------------------------------------  
 
@@ -169,40 +171,39 @@ void reloadImage() {
   // clear screen
     background(color(255, 255 , 0));    // yellow screen    
     
-  // compare old and new camera images
-    motionLevel = 0;                                                                        // reset total motion detected counter
-    for (int i = 0; i < cameras.length; i++) {                                              // step through all cameras
-      if ( (cameras[i].update()) == false ) { return; }                                     // refresh image (exit procedure on error)
-      opencv = new OpenCV(this, cameras[i].image);                                          // load image in to OpenCV
-      image(opencv.getOutput(), cameras[i].imageX, cameras[i].imageY);                      // show image on screen 
-      boolean iok = true;                                                                   // if previous image is ok detect differences between them
+  // compare old and new camera images using OpenCV
+    for (int i = 0; i < cameras.length; i++) {                                            // step through all cameras
+      if ( (cameras[i].update()) == false ) { return; }                                   // refresh image (exit procedure if error)
+      opencv = new OpenCV(this, cameras[i].image);                                        // load image in to OpenCV
+      image(opencv.getOutput(), cameras[i].imageX, cameras[i].imageY);                    // display image on screen 
+      faceDetect(i);                                                                      // face detect  
+
+    // make sure previous image is valid       
+      boolean iok = true;
       try {                         
         if (cameras[i].imageOld.width < 1) { iok = false; }
-      } catch (Exception e) { iok = false;  }      
-      if (iok) { opencv.diff(cameras[i].imageOld); }   
-      //opencv.brightness(30);                                                               // adjust image brightness
-      if (faceDetectionEnabled) {                                                            // face detection
-        opencv.loadCascade(OpenCV.CASCADE_FRONTALFACE); 
-        faces = opencv.detect();
-        if (faces.length > 0) {
-          // only trigger alarm is this has happened twice recently
-            if ( (millis() - lastMovementFace) > (doubleSenseFace * 1000) ) {
-              lastMovementFace = millis();    // set time of this event but do not trigger alarm
-              //message.add(cameraName + ": " + camMotionLevel + " first at " + currentTime(":") );
-            } else {
-              lastMovementFace = 0;           // clear timer and trigger alarm          
-              message.add("Face detected on " + cameras[i].cameraName + " at " + currentTime(":"));    // + " Size: " + faces[0].width + ", " + faces[0].height);
-              if (saveImages) cameras[i].image.save( currentTime("-") + "_" + cameras[i].cameraName + ".jpg");     // save image to disk
-              if (soundEnabled) faceSound.play(); 
-          }      
-        }
+      } catch (Exception e) { iok = false; }
+    
+      if (iok == true) {
+        // compare images
+          opencv.diff(cameras[i].imageOld);                                                     // compare the two images
+          opencv.setROI(cameras[i].roiX, cameras[i].roiY, cameras[i].roiW, cameras[i].roiH);    // mask the resulting differences image
+          cameras[i].grayDiff = opencv.getSnapshot();                                           // get the differences image
+          cameras[i].grayDiff.resize(cameras[i].changeWidth, cameras[i].changeHeight);          // resize differences image
+          if (cameras[i].motion() == cDetections) {        
+            // motion detected
+              message.add(cameras[i].cameraName + ": " + cameras[i].camMotionLevel + " at " + currentTime(":") );
+              if (soundEnabled) movementSound.play(); 
+              if (saveImages) { 
+                cameras[i].image.save( currentTime("-") + "_" + cameras[i].cameraName + "-2.jpg");         // save current image to disk
+            }
+          }
+          // display image title
+            fill(0, 0, 255);  textSize(sTextSize);
+            text(cameras[i].cameraName + ": " + cameras[i].camMotionLevel, cameras[i].imageX + (cameras[i].imageWidth/2) - ((cameras[i].cameraName.length()/2)*8), cameras[i].imageY + cameras[i].imageHeight + 18 );
       }
-      opencv.setROI(cameras[i].roiX, cameras[i].roiY, cameras[i].roiW, cameras[i].roiH);    // mask the resulting image
-      cameras[i].grayDiff = opencv.getSnapshot();                                           // store resulting image
-      cameras[i].grayDiff.resize(cameras[i].changeWidth, cameras[i].changeHeight);          // resize image
-      cameras[i].motion();       // decide if enough change in images to count as movement detected
-}    
-     
+    }
+  
   // show screen Title
     noFill();  textSize(sTextSize * 2); fill(255, 0, 0);
     text(sTitle, (width/2) - (sTitle.length() * 8), 40);     
@@ -241,9 +242,26 @@ void reloadImage() {
         fill(0, 0, 255);  textSize(sTextSize);
         text(tMes, border , height -5 );     // show total motion detected on screen
       // Motion detected level
-        text("Motion trigger: " + motionImageTriggerMin + "(+/-)", width - (sTextSize * 11), height -5);
+        text("Trigger at: " + motionImageTriggerMin + "(+/-)", width - (sTextSize * 11), height -5);
 }
 
+// ----------------------------------------------------------------------------------  
+// face detection on image
+
+void faceDetect(int i) {
+  if (!faceDetectionEnabled) return;                    // face detection is disabled
+                                     
+  opencv.loadCascade(OpenCV.CASCADE_FRONTALFACE); 
+  faces = opencv.detect();
+  if (faces.length > 0) {
+    message.add("Face detected on " + cameras[i].cameraName + " at " + currentTime(":"));    // + " Size: " + faces[0].width + ", " + faces[0].height);
+    if (saveImages) {
+      cameras[i].image.save( currentTime("-") + "_" + cameras[i].cameraName + "-2.jpg");         // save current image to disk
+    }
+    if (soundEnabled) faceSound.play(); 
+    }      
+}
+          
 // ----------------------------------------------------------------------------------  
 
 void draw() {
@@ -305,7 +323,9 @@ void keyPressed() {
         motionImageTriggerMin += triggerStep;
       }      
       if (key == '-') {
-        motionImageTriggerMin -= triggerStep;
+        if (motionImageTriggerMin > triggerStep) {
+          motionImageTriggerMin -= triggerStep;
+        }
       }         
       // toggle face detection
       if (key == 'f' || key == 'F') {
@@ -318,10 +338,11 @@ void keyPressed() {
 
 class camera{
 
-  PImage image, imageOld, grayDiff;          // store for images
-  String iloc;                               // URL of image to monitor 
-  String cameraName;                         // name of the camera
-  int camMotionLevel;                        // motion level of this camera
+  PImage image, imageOld, grayDiff;               // stores for images
+  String iloc;                                    // URL of image to monitor 
+  String cameraName;                              // name of the camera
+  int camMotionLevel;                             // motion level of this camera
+  int cDetect;                                    // consecutive change detection counter
   
   // main image position on screen   
     int imageWidth;
@@ -364,23 +385,27 @@ class camera{
     // Misc
       iloc = camLoc;                // url of camera
       cameraName = camName;         // name of camera
+      cDetect = 0;
   }   // camera
    
    
   boolean update() {                // update image via url
-      if (image != null && image.width > 0) { imageOld = image; }    // replace the old image with the current one
+      
+      //if (cDetect > cDetections) cDetect = 0;                   // in case the count runs away
+      imageOld = image;     // replace the old image with the current one 
+      //if ( cDetect == 0 || image != null) imageOld = image;     // replace the old image with the current one 
       
       try {  
         image = loadImage(iloc);    // load the image
       } catch (Exception e) {
-        camError(1);          
+        camError(2);          
         return false; 
       }
       
       try {                         // test if image loaded ok
         if (image.width < 1) { return false; }
       } catch (Exception e) {
-        camError(2);
+        camError(1);
         return false;
       }
       
@@ -398,48 +423,42 @@ class camera{
   }   // camError
   
   
-  void motion() {       // decide if enough change in images to count as movement detected
+int motion() {       // decide if enough change in images to count as movement detected
   
-    // check image is ok
-      try {     
-        if (image.width < 1) { 
-          camError(3);
-          return; 
-        }
-      } catch (Exception e) {
-        camError(4);
-        return;
-      }    
-  
-    if (imageOld == null || image.width < 1) {return;}   // no old image yet to compare
+    // check the images are ok
+      int iError = 0;    
+      try {                 // main image
+        if (image.width < 1) { iError = 4; }
+      } catch (Exception e) { iError = 3; }
+      try {                 // old image
+        if (imageOld.width < 1 || imageOld == null) { iError = 6; }
+      } catch (Exception e) { iError = 5; }   
+      try {                 // differences image
+        if (imageOld.width < 1) { iError = 8; }
+      } catch (Exception e) { iError = 7; }        
+      if (iError != 0) {    // problem with one of the images so abort
+        camError(iError); 
+        return 0;     
+      }
+
     grayDiff.resize(changeWidth, changeHeight);
     grayDiff.loadPixels();
-    image(grayDiff, changeX, changeY);    // show differences image on screen
+    image(grayDiff, changeX, changeY);               // show differences image on screen
+    
     // get a single trigger level value from the whole image
       int dimension = grayDiff.width * grayDiff.height;
-      camMotionLevel = 0;
+      camMotionLevel = 0;                            // reset change count
       for (int i = 0; i < dimension; i++) { 
         int pix = grayDiff.pixels[i];
         float pixVal = (red(pix)+green(pix)+blue(pix)) / 3;     // average brightness of this pixel
-        if (pixVal > motionPixeltrigger) {camMotionLevel++;};   
+        if (pixVal > motionPixeltrigger) camMotionLevel++;   
       }
-      motionLevel += camMotionLevel;   // update combined motion trigger counter      
       if (camMotionLevel >= motionImageTriggerMin && camMotionLevel <= motionImageTriggerMax) {
-        // motion detected
-          // only trigger alarm is this has happened twice recently
-            if ( (millis() - lastMovementTime) > (doubleSenseTime * 1000) ) {
-              lastMovementTime = millis();    // set time of this event but do not trigger alarm
-              //message.add(cameraName + ": " + camMotionLevel + " first at " + currentTime(":") );
-            } else {
-              lastMovementTime = 0;           // clear timer and trigger alarm
-              message.add(cameraName + ": " + camMotionLevel + " at " + currentTime(":") );
-              if (soundEnabled) alarmSound.play(); 
-              if (saveImages) image.save( currentTime("-") + "_" + cameraName + ".jpg");     // save image to disk
-            }
+        cDetect++;                               // increment consecutive detection counter
+        return cDetect;                          // motion detected
       }
-      // display image title
-        fill(0, 0, 255);  textSize(sTextSize);
-        text(cameraName + ": " + camMotionLevel, imageX + (imageWidth/2) - ((cameraName.length()/2)*8), imageY + imageHeight + 18 );      
+      cDetect = 0;                               // reset consecutive detection counter
+      return 0;        
   }   // motion
   
 }  // camera object
