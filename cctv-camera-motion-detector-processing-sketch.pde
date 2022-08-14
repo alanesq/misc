@@ -3,6 +3,9 @@
               Processing jpg image change monitor - 14Aug22
               Monitors jpg images loaded via a URL and makes a sound if movement is detected
               
+              NOTES: It requires some sound files to use (see 'load audio files' in 'setup()')
+                     Video on writing motion detection code: https://www.youtube.com/watch?v=QLHMtE5XsMs
+              
               Libraries used:
                 OpenCV - https://opencv-java-tutorials.readthedocs.io/en/latest/
                  Minim - https://code.compartmental.net/minim/ 
@@ -16,25 +19,25 @@
                                 +/- = Adjust trigger level
                             numbers = enable/disable cameras
   
-    from: https://github.com/alanesq/misc/blob/main/cctv-camera-motion-detector-processing-sketch.pde
-                                                                                  alanesq@disroot.org
+    https://github.com/alanesq/misc/blob/main/cctv-camera-motion-detector-processing-sketch.pde
+                                                                            alanesq@disroot.org
 */
 
 // ----------------------------------------------------------------------------------
 // ---------------------------------- S E T T I N G S -------------------------------  
 // ----------------------------------------------------------------------------------
 
-  String sTitle = "CCTV Movement Detector";          // Sketch title
-  boolean saveImages = false;                        // default save images when motion detected (true or false)
-  boolean soundEnabled = true;                       // default enable sound 
-  boolean faceDetectionEnabled = false;              // default enable face detection
-  int refresh = 2000;                                // how often to refresh image
-  int timeoutSetting = 10;                           // default timeout (in minutes), activated by pressing 't' on keyboard
+  String sTitle = "CCTV Movement Detector";   // Sketch title
+  boolean saveImages = false;                 // default save images when motion detected (true or false)
+  boolean soundEnabled = true;                // default enable sound 
+  boolean faceDetectionEnabled = false;       // default enable face detection
+  int refresh = 2000;                         // how often to refresh image
+  int timeoutSetting = 10;                    // default timeout (in minutes), activated by pressing 't' on keyboard
   
   // display
-  int border = 8;                                    // screen border
-  int sTextSize = 14;                                // text size
-  color sTextColor = color(0, 0, 255);               // text colour  
+  int border = 8;                             // screen border
+  int sTextSize = 14;                         // text size
+  color sTextColor = color(0, 0, 255);        // text colour  
   
   // message area settings
   int messageWidth = 180;
@@ -59,9 +62,9 @@
   int windowHeight = messageHeight + 40;  
   
   // motion detection
-  int motionImageTrigger = 200;                      // default trigger level min (triggers if between min and max)
-  int triggerStep = 25;                              // trigger level adjustment step size
-  int motionPixeltrigger = 50;                       // trigger level for movement detection of pixels                    
+  int motionImageTrigger = 200;     // default trigger level min (triggers if between min and max)
+  int triggerStep = 25;             // trigger level adjustment step size
+  int motionPixeltrigger = 50;      // trigger level for movement detection of pixels                    
 
 // ----------------------------------------------------------------------------------  
 
@@ -108,8 +111,8 @@ void setup() {
   
   // create camera objects (name, URL, image detection maskx, masky, maskw, maskh)
     cameras.add(new camera("Door", "http://door.jpg"));
-    cameras.add(new camera("Front", "http:/front.jpg"));
-    cameras.add(new camera("Side", "http://side.jpg"));
+    cameras.add(new camera("Front", "http://front.jpg"));
+    cameras.add(new camera("Side", "http:///side.jpg"));
     cameras.add(new camera("Back", "http://back.jpg"));
     
   // turn camera 3 off
@@ -214,26 +217,24 @@ void refresh() {
       text(tMes, width - textWidth(tMes) - border, height -5);        
 
     // compare old and new camera images using OpenCV and display images
-      for (int i = 0; i < cameras.size(); i++) {                                            // step through all cameras
+      for (int i = 0; i < cameras.size(); i++) {                                     // step through all cameras
         camera cam = cameras.get(i);
         if (!cam.enabled) continue;                                                  // skip camera if not enabled
         if (!cam.update()) continue;                                                 // refresh image (skip camera if there was an error)
         cam.image.resize(_imageWidth, _imageHeight);                                 // resize image
         opencv = new OpenCV(this, cam.image);                                        // load image in to OpenCV - NOTE: I suspect this is not the best way to do this but I can't find a better way to refresh the image
-        image(opencv.getOutput(), _mainLeft + _imageSpacing*i, _mainTop + _camTop);                    // display image on screen 
-        faceDetect(i);                                                                      // face detect 
-        int mRes = motionDetect(i);                                                         // motion detect
-        
-        // display changes images
-          if (mRes != -1) {                                                                     // -1 = problem with an image
-            // display compare image on screen
+        image(opencv.getOutput(), _mainLeft + _imageSpacing*i, _mainTop + _camTop);  // display image on screen 
+        faceDetect(i);                                                               // face detect 
+        int mRes = motionDetect(i);                                                  // motion detect
+       
+        // display changes image and title
+          if (mRes != -1) {                                                          // -1 = problem with an image
               cam.grayDiff.resize(_changeWidth, _changeHeight);      // resize differences image for display
               image(cam.grayDiff, _mainLeft + _changePad + _imageSpacing*i, _mainTop + _camTop + _imageHeight + 24, _changeWidth, _changeHeight);               // show differences image on screen
             // display image title
               stroke(sTextColor); fill(sTextColor); strokeWeight(1);
               if (cam.currentDetectionLevel >= motionImageTrigger) fill(128, 0, 128);  // change colour if above trigger level
               tMes = cam.cameraName + ": " + cam.currentDetectionLevel + "/" + cam.cumulativeDetectionLevel;
-              stroke(sTextColor); fill(sTextColor); strokeWeight(1);
               text(tMes, _mainLeft + (_imageSpacing * (i)) + ( int((_imageWidth - textWidth(tMes)) / 2) ), _mainTop + _camTop + _imageHeight + 18);
           }   
       }   //for loop
@@ -255,8 +256,9 @@ void faceDetect(int i) {
         for (int j = 0; j < faces.length; j++) {
           logFile.println("   face#" + (j+1) + ": x=" + faces[j].x + ", y=" + faces[j].y + ", width=" + faces[j].width + ", height=" + faces[j].height);
           // draw area on screen
-            stroke(0, 255, 0);  noFill();
-            rect(_mainLeft + _imageSpacing*i + faces[j].x, _mainTop + _camTop + faces[j].y, faces[j].width, faces[j].height);          
+            stroke(0, 255, 0);  noFill();    
+            // note - image location on screen = _mainLeft + _imageSpacing*i, _mainTop + _camTop
+            rect( (_mainLeft + _imageSpacing*i) + faces[j].x, (_mainTop + _camTop) + faces[j].y, faces[j].width, faces[j].height);          
         }      
       message.add("Face on '" + cam.cameraName + "' at " + currentTime(":"));    // + " Size: " + faces[0].width + ", " + faces[0].height);
       if (saveImages) {
@@ -276,7 +278,7 @@ int motionDetect(int i) {
  
       camera cam = cameras.get(i);
       int mRes = cam.motion();           // perform motion detection
-       if (mRes == 1) {                         // if motion detected
+       if (mRes == 1) {                  // if motion detected
           logFile.println(currentTime(":") + " - Motion detected on camera '" + cam.cameraName + "' level:" + cam.currentDetectionLevel);
           message.add(cam.cameraName + ": " + cam.currentDetectionLevel + " at " + currentTime(":") );
           if (soundEnabled) {
@@ -399,12 +401,13 @@ void keyPressed() {
 
 class camera{
 
-  boolean enabled;                                // if this camera is enabled
-  PImage image, imageOld, grayDiff;               // stores for camera images
-  String iloc;                                    // URL of image being monitored
-  String cameraName;                              // name of the camera
-  int currentDetectionLevel;                      // the detection level of the current image
-  int cumulativeDetectionLevel;                   // the cumulative detection level (combines current and previous levels)
+  boolean enabled;                     // if this camera is enabled
+  PImage image, imageOld, grayDiff;    // stores for camera images
+  String iloc;                         // URL of image being monitored
+  String iExt = "jpg";                 // type of image file
+  String cameraName;                   // name of the camera
+  int currentDetectionLevel;           // the detection level of the current image
+  int cumulativeDetectionLevel;        // the cumulative detection level (combines current and previous levels)
     
   // detection image mask
     int roiX;   // -1 = mask is disabled
@@ -436,20 +439,21 @@ class camera{
    
   
   // refresh the camera image
-  boolean update() {                      // update camera image via url
-    if (enabled == false) return false;   // skip camera if not enabled
-    imageOld = image;                     // replace the old image with the current one  
+  boolean update() {       
+    if (enabled == false) return false;   // abort if camera is disabled
+    imageOld = image;                     // first store the present image
     
-    // load image from camera and check it is ok
+    // load new image from camera and check it is ok
       int iError = 0;
       for (int i=0; i<3; i++) {           // try up to 3 times
         iError = 0;
         try {  
-          image = loadImage(iloc);        // load the image
+          image = loadImage(iloc, iExt);        // load the image
         } catch (Exception e) {
           iError = 1;
         }
-        if (iError == 0) break;
+        if (iError == 0) break;           // image has loaded ok so quit for loop
+        delay(200);                       // wait then try again
       }
       try {                               // test if image loaded ok
         if (image.width < 1) { iError = 2; }
@@ -482,9 +486,9 @@ int motion() {       // decide if enough change in images to count as movement d
   } catch (Exception e) { return -1; }
 
   // compare images
-    opencv.diff(imageOld);                                                     // compare the two images
-    if (roiX != -1) opencv.setROI(roiX, roiY, roiW, roiH);                     // mask the resulting differences image
-    grayDiff = opencv.getSnapshot();                                           // get the differences image
+    opencv.diff(imageOld);                                   // compare the two images
+    if (roiX != -1) opencv.setROI(roiX, roiY, roiW, roiH);   // mask the resulting differences image  
+    grayDiff = opencv.getSnapshot();                         // get the differences image
 
   // check the images are ok
     int iError = 0;    
@@ -505,12 +509,12 @@ int motion() {       // decide if enough change in images to count as movement d
     // get a single trigger level value from the whole image
       grayDiff.loadPixels();
       int dimension = grayDiff.width * grayDiff.height;
-      currentDetectionLevel = 0;                         // reset changed pixel counter
+      currentDetectionLevel = 0;              // reset changed pixel counter
       for (int i = 0; i < dimension; i++) {
         int pix = grayDiff.pixels[i];
-        float pixVal = brightness(pix);                  // average brightness of this pixel
+        float pixVal = brightness(pix);       // average brightness of this pixel
         if (pixVal > motionPixeltrigger) {
-          currentDetectionLevel++;                       // increment changed pixel counter
+          currentDetectionLevel++;            // increment changed pixel counter
         }
       }
  //     // weight the result to compensate for the mask reducing effective image resolution (so all camera results are comparable)
