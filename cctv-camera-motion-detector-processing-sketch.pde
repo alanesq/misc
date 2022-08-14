@@ -256,7 +256,7 @@ void faceDetect(int i) {
           logFile.println("   face#" + (j+1) + ": x=" + faces[j].x + ", y=" + faces[j].y + ", width=" + faces[j].width + ", height=" + faces[j].height);
           // draw area on screen
             stroke(0, 255, 0);  noFill();
-            rect(_mainLeft + _imageSpacing*i + faces[j].x, _mainTop + _camTop + faces[j].x, faces[j].width, faces[j].height);          
+            rect(_mainLeft + _imageSpacing*i + faces[j].x, _mainTop + _camTop + faces[j].y, faces[j].width, faces[j].height);          
         }      
       message.add("Face on '" + cam.cameraName + "' at " + currentTime(":"));    // + " Size: " + faces[0].width + ", " + faces[0].height);
       if (saveImages) {
