@@ -1,6 +1,6 @@
 /*
     
-              Processing jpg image change monitor - 14Aug22
+              Processing jpg image change monitor - 15Aug22
               Monitors jpg images loaded via a URL and makes a sound if movement is detected
               
               NOTES: It requires some sound files to use (see 'load audio files' in 'setup()')
@@ -109,11 +109,10 @@ void setup() {
   // size(820, 360);    // set up screen - old version of processing (delete 'void settings' procedures above)
   settingsAdnl();    // set up screen - new  version of processing only
   
-  // create camera objects (name, URL, image detection maskx, masky, maskw, maskh)
-    cameras.add(new camera("Door", "http://door.jpg"));
-    cameras.add(new camera("Front", "http://front.jpg"));
-    cameras.add(new camera("Side", "http:///side.jpg"));
-    cameras.add(new camera("Back", "http://back.jpg"));
+  // create camera objects (name, URL to the jpg, image detection maskx, masky, maskw, maskh)
+    cameras.add(new camera("Door", "http://door.jpg"));                 // where to access a live jpg image from your camera
+    //cameras.add(new camera("Front", "http://front.jpg"));             // second camera (for more cameras just add more lines like this)
+    //cameras.add(new camera("RoofCam", "http://192.168.1.19/jpg"));    // esp32cam using https://github.com/alanesq/esp32cam-demo
     
   // turn camera 3 off
     camera cam = cameras.get(3);
@@ -371,26 +370,14 @@ void keyPressed() {
         faceDetectionEnabled = !faceDetectionEnabled;  
         logFile.println(currentTime(":") + " - face detection enabled changed to " + faceDetectionEnabled);
       }      
-      // toggle cameras enabled/disabled
-        if (key == '1') {
-          camera cam = cameras.get(0);
-          cam.enabled = !cam.enabled;
-          logFile.println(currentTime(":") + " - camera 1 enabled set to " + cam.enabled);
-        }
-        if (key == '2') {
-          camera cam = cameras.get(1);
-          cam.enabled = !cam.enabled;
-          logFile.println(currentTime(":") + " - camera 2 enabled set to " + cam.enabled);
-        }
-        if (key == '3') {
-          camera cam = cameras.get(2);
-          cam.enabled = !cam.enabled;
-          logFile.println(currentTime(":") + " - camera 3 enabled set to " + cam.enabled);
-        }
-        if (key == '4') {
-          camera cam = cameras.get(3);
-          cam.enabled = !cam.enabled;
-          logFile.println(currentTime(":") + " - camera 4 enabled set to " + cam.enabled);
+      // toggle cameras enabled flag
+        if (int(key) >= 49 && int(key) <= 57) {    // if it is a number key (1 to 9)
+          int camNum = int(key) - 49;              // which camera this button relates to
+          if (camNum < cameras.size()) {           // if this is a valid camera  
+            camera cam = cameras.get(camNum);
+            cam.enabled = !cam.enabled;
+            logFile.println(currentTime(":") + " - camera '" + cam.cameraName + "' enabled set to " + cam.enabled);            
+          }
         }
     }
 }  
