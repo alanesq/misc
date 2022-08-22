@@ -1,9 +1,10 @@
 /*
     
-              Processing jpg image change monitor - 16Aug22
+              jpg image change monitor - 22Aug22 - created with https://processing.org/
               Monitors jpg images loaded via a URL and makes a sound if movement is detected
               
               NOTES: It requires some sound files to use (see 'load audio files' in 'setup()')
+                     Set JPG files to use in 'setup()' via commands 'cameras.add(...'
                      Video on writing motion detection code: https://www.youtube.com/watch?v=QLHMtE5XsMs
               
               Libraries used:
@@ -16,8 +17,11 @@
                                   S = toggle sound
                                   D = toggle save image
                                   F = toggle face detection 
+                                  0 = toggle message area display
                                 +/- = Adjust trigger level
                             numbers = enable/disable cameras
+                            
+              A log file (log.txt) is created when app closed and cleared when app opened.
   
     https://github.com/alanesq/misc/blob/main/cctv-camera-motion-detector-processing-sketch.pde
                                                                             alanesq@disroot.org
@@ -31,13 +35,16 @@
   boolean saveImages = false;                 // default save images when motion detected (true or false)
   boolean soundEnabled = true;                // default enable sound 
   boolean faceDetectionEnabled = false;       // default enable face detection
+  boolean messagesEnabled = true;             // default message area display enabled (key '0' to toggle)
   int refresh = 2000;                         // how often to refresh image (ms)
   int timeoutSetting = 10;                    // timeout adjust step size (minutes), activated by pressing 't' on keyboard
   
   // motion detection
-  int motionImageTrigger = 150;               // default trigger level min (triggers if between min and max)
+  int motionImageTrigger = 200;               // default trigger level min (triggers if between min and max)
   int triggerStep = 25;                       // trigger level adjustment step size
-  int motionPixeltrigger = 50;                // trigger level for movement detection of pixels        
+  int motionPixeltrigger = 50;                // trigger level for movement detection of pixels   
+  float curWeighting = 0.2;                   // Current weighting  - used for mixing current and previous trigger levels to determine if motion detected (both to add up to 1.0)
+  float cumWeighting = 0.8;                   // Previous weighting
   
   // display
   int border = 8;                             // screen border
@@ -46,7 +53,7 @@
   
   // message area settings
   int messageWidth = 180;
-  int messageHeight = 320;
+  int messageHeight = 300;
   int messageX = border;
   int messageY = border;
   int maxMessages = messageHeight / 20;   
@@ -58,17 +65,17 @@
   int _changeHeight = _changeWidth / 4 * 3;  
   int _mainTop = border;
   int _camTop = border;
-  int _mainLeft = messageWidth + (2 * border);// messages box width
+  int _mainLeft = border * 2;                    // left position for camera images
   int _imageSpacing = _imageWidth + border;   // spacing between images
   int _changePad = abs((_imageWidth - _changeWidth) / 2);   
   
   // calculate the screen size based on number of cameras and message box size 
   int _numberOfCameras = 3;                   // just used here to calculate the screen width
   int windowWidth = (border * (_numberOfCameras + 2)) + messageWidth + (_numberOfCameras * _imageWidth);  
-  int windowHeight = messageHeight + 40;                
+  int windowHeight = messageHeight + 50;                
 
 // ----------------------------------------------------------------------------------  
-
+ 
 ArrayList<camera> cameras = new ArrayList<camera>();  // array of camera objects
 
 // opencv
@@ -91,7 +98,7 @@ Rectangle[] faces;                                      // used by face detectio
 
 // ----------------------------------------------------------------------------------  
 
-// custom screen settings - called from 'setup()' - new version of processing only
+// custom screen settings - called from 'setup()' - for Processing v4 onwards only
   void settings() {
     size(windowWidth, windowHeight);     // set window size
   }
@@ -101,22 +108,22 @@ Rectangle[] faces;                                      // used by face detectio
         surface.setLocation(max(displayWidth - windowWidth - 20, 0), max(displayHeight - windowHeight - 55, 0) );   // location on screen  
   }
 
-// main setup procedure
 void setup() {
-  // size(820, 360);    // set up screen - old versions of processing (delete 'custom screen settings' procedures above)
+  // size(820, 360);    // set up screen for pre version 3 of processing (delete 'custom screen settings' procedures above)
   settingsAdnl();    // set up screen - new  version of processing only
  
   // create camera objects (name, URL to the jpg, image detection maskx, masky, maskw, maskh)
-    cameras.add(new camera("Door", "http://door.jpg"));                 // where to access a live jpg image from your camera
-    //cameras.add(new camera("Front", "http://front.jpg"));             // second camera (for more cameras just add more lines like this)
-    //cameras.add(new camera("RoofCam", "http://192.168.1.19/jpg"));    // esp32cam using https://github.com/alanesq/esp32cam-demo  
-   
-  // turn camera 3 off
-    if (cameras.size() > 3) {
-      camera cam = cameras.get(3);
-      cam.enabled = false; 
-    }
+    cameras.add(new camera("Front", "http://192.168.1.22/cam.jpg"));                                    // url to access a jpg image
+    //cameras.add(new camera("Back", "http://192.168.1.23/cam.jpg"));                                     // second camera 
+    //cameras.add(new camera("ESP32", "http://192.168.2.19/jpg"));                                        // esp32cam using https://github.com/alanesq/esp32cam-demo
+    //cameras.add(new camera("IPcam", "http://192.168.2.123/snapshot.cgi?user=guest&pwd=yourpassword"));  // using a commercial ip camera
+
+  // disable camera 3 and 4 (can be enabled by pressing keyboard key '4')
+    if (cameras.size() > 3) cameras.get(3).enabled = false; 
+    if (cameras.size() > 4) cameras.get(4).enabled = false; 
     
+  if (messagesEnabled) _mainLeft+=messageWidth;     // if message box is enabled move camera images over
+
   // load the audio files
     minim = new Minim(this);
     movementSound = minim.loadFile("sounds/movement.wav");
@@ -141,7 +148,7 @@ void setup() {
 void exit() {
     logFile.println(currentTime(":") + " - Stopped");
     logFile.flush();     // Writes the remaining data to the file
-    logFile.close();     // Finishes the file  
+    logFile.close();     // Finishes the file    
     super.exit();        // close app
 }
 
@@ -178,13 +185,15 @@ void refreshScreen() {
   //  text(sTitle, (width/2) - (sTitle.length() * 8), 40);     
   
   // draw the information box 
-    stroke(100, 100, 0); fill(220, 220, 0); strokeWeight(2);
-    rect(messageX, messageY, messageWidth,messageHeight);
-    stroke(sTextColor); fill(sTextColor); strokeWeight(1);
-    textSize(sTextSize); 
-    if (message.size() > maxMessages) { message.remove(0); }        // limit number of messages
-    for (int i = 0; i < message.size(); i++) {
-      text(message.get(i), messageX + border, messageY + border + (20 * i) + 7 );   
+    if (messagesEnabled) {
+      stroke(100, 100, 0); fill(220, 220, 0); strokeWeight(2);
+      rect(messageX, messageY, messageWidth,messageHeight);
+      stroke(sTextColor); fill(sTextColor); strokeWeight(1);
+      textSize(sTextSize); 
+      if (message.size() > maxMessages) { message.remove(0); }        // limit number of messages
+      for (int i = 0; i < message.size(); i++) {
+        text(message.get(i), messageX + border, messageY + border + (20 * i) + 7 );   
+      }
     }
             
   // show the status info
@@ -225,7 +234,8 @@ void refreshScreen() {
     // Motion detection settings
       tMes = "Triggers at: " + motionImageTrigger + "(+/-)"; 
       stroke(sTextColor); fill(sTextColor); strokeWeight(1);
-      text(tMes, width - textWidth(tMes) - border, height -5);        
+      //text(tMes, width - textWidth(tMes) - border, height -5); 
+      text(tMes, border, height -8 - sTextSize);   
 }  // refreshScreen
 
 void compareImages() {
@@ -292,16 +302,16 @@ int motionDetect(int i) {
  
       camera cam = cameras.get(i);
       int mRes = cam.motion();           // perform motion detection
-       if (mRes == 1) {                  // if motion detected
-          logFile.println(currentTime(":") + " - Motion detected on camera '" + cam.cameraName + "' level:" + cam.currentDetectionLevel);
-          message.add(cam.cameraName + ": " + cam.currentDetectionLevel + " at " + currentTime(":") );
-          if (soundEnabled) {
-              movementSound.rewind();
-              movementSound.play();    
-          }              
-          if (saveImages) cam.image.save( "images/" + currentTime("-") + "_" + cam.cameraName + ".jpg");         // save current image to disk
-        }  
-        return mRes;
+      if (mRes == 1) {                  // if motion detected
+        logFile.println(currentTime(":") + " - Motion detected on camera '" + cam.cameraName + "' level:" + cam.currentDetectionLevel);
+        message.add(cam.cameraName + ": " + cam.currentDetectionLevel + " at " + currentTime(":") );
+        if (soundEnabled) {
+            movementSound.rewind();
+            movementSound.play();    
+        }              
+        if (saveImages) cam.image.save( "images/" + currentTime("-") + "_" + cam.cameraName + ".jpg");         // save current image to disk
+      }  
+      return mRes;
 }
 
 // ---------------------------------------------------------------------------------- 
@@ -316,6 +326,11 @@ void actionTimer() {
     logFile.println(currentTime(":") + " - Stopped by timer");
     logFile.flush(); // Writes the remaining data to the file
     logFile.close(); // Finishes the file  
+    if (soundEnabled) {                     // if sound enabled make sound first
+        alarmSound.rewind();
+        alarmSound.play();   
+        delay(1200);     
+    }      
     exit();   // timer expired so quit 
 }
 
@@ -366,11 +381,22 @@ void keyPressed() {
           }
           logFile.println(currentTime(":") + " - motion trigger level changed to " + motionImageTrigger);
         }         
+      // toggle message area display
+        if (key == '0') {
+          if (messagesEnabled) {
+            messagesEnabled = false;
+            _mainLeft-=messageWidth;
+          } else {
+            messagesEnabled = true;
+            _mainLeft+=messageWidth;            
+          }          
+          logFile.println(currentTime(":") + " - message area display enabled changed to " + messagesEnabled);
+        }      
       // toggle face detection
         if (key == 'f' || key == 'F') {
           faceDetectionEnabled = !faceDetectionEnabled;  
           logFile.println(currentTime(":") + " - face detection enabled changed to " + faceDetectionEnabled);
-        }      
+        }           
       // toggle cameras enabled flag
           if (int(key) >= 49 && int(key) <= 57) {    // if it is a number key (1 to 9)
             int camNum = int(key) - 49;              // which camera this button relates to
@@ -506,7 +532,7 @@ public int motion() {
  
       // control trigger level     
         currentDetectionLevel = min(motionImageTrigger * 2, currentDetectionLevel);                            // limit maximum value
-        cumulativeDetectionLevel = int((cumulativeDetectionLevel * 0.6) + (currentDetectionLevel * 0.4));      // limit rate of change by mixing with previous levels
+        cumulativeDetectionLevel = int((cumulativeDetectionLevel * cumWeighting) + (currentDetectionLevel * curWeighting));      // limit rate of change by mixing with previous levels
         //if (currentDetectionLevel == 0) cumulativeDetectionLevel = 0;                                        // if current level is zero clear previous readings      
       if (cumulativeDetectionLevel >= motionImageTrigger) {                                                    // if motion detected
         cumulativeDetectionLevel = 0;                                                                          // reset cumulative trigger level
