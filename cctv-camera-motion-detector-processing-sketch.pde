@@ -1,6 +1,6 @@
 /*
     
-              jpg image change monitor - 22Aug22 - created with https://processing.org/
+              jpg image change monitor - 24Aug22 - created with https://processing.org/
               Monitors jpg images loaded via a URL and makes a sound if movement is detected
               
               NOTES: It requires some sound files to use (see 'load audio files' in 'setup()')
@@ -30,9 +30,28 @@
 // ----------------------------------------------------------------------------------
 // ---------------------------------- S E T T I N G S -------------------------------  
 // ----------------------------------------------------------------------------------
+/*
+
+  Cameras can be configured from 'cameras.json' file or in 'setup()'
+
+  example JSON file:
+                              [
+                                {
+                                    "name": "Door",
+                                     "url": "http://192.168.1.1/door.jpg",
+                                   "maskx": -1, "masky": 0, "maskw": 0, "maskh": 0
+                                },
+                                {
+                                    "name": "Front",
+                                     "url": "http://192.168.1.2/front.jpg",
+                                   "maskx": -1, "masky": 0, "maskw": 0, "maskh": 0
+                                }
+                              ]
+
+*/
 
   String sTitle = "CCTV Movement Detector";   // Sketch title
-  boolean saveImages = false;                 // default save images when motion detected (true or false)
+  int saveImages = 0;                         // default save images when motion detected (0, 1 or 2)
   boolean soundEnabled = true;                // default enable sound 
   boolean faceDetectionEnabled = false;       // default enable face detection
   boolean messagesEnabled = true;             // default message area display enabled (key '0' to toggle)
@@ -59,9 +78,9 @@
   int maxMessages = messageHeight / 20;   
   
   // camera display settings   
-  int _imageWidth = 200;                      // size of main images
+  int _imageWidth = 200;                      // size of main images on screen
   int _imageHeight = _imageWidth / 4 * 3;  
-  int _changeWidth = 150;                     // size of changes images
+  int _changeWidth = 150;                     // size of changes images on screen
   int _changeHeight = _changeWidth / 4 * 3;  
   int _mainTop = border;
   int _camTop = border;
@@ -77,6 +96,9 @@
 // ----------------------------------------------------------------------------------  
  
 ArrayList<camera> cameras = new ArrayList<camera>();  // array of camera objects
+
+// JSON file for camera details
+  JSONArray camValues;
 
 // opencv
   import gab.opencv.*;
@@ -111,16 +133,27 @@ Rectangle[] faces;                                      // used by face detectio
 void setup() {
   // size(820, 360);    // set up screen for pre version 3 of processing (delete 'custom screen settings' procedures above)
   settingsAdnl();    // set up screen - new  version of processing only
- 
-  // create camera objects (name, URL to the jpg, image detection maskx, masky, maskw, maskh)
-    cameras.add(new camera("Front", "http://192.168.1.22/cam.jpg"));                                    // url to access a jpg image
-    //cameras.add(new camera("Back", "http://192.168.1.23/cam.jpg"));                                     // second camera 
-    //cameras.add(new camera("ESP32", "http://192.168.2.19/jpg"));                                        // esp32cam using https://github.com/alanesq/esp32cam-demo
-    //cameras.add(new camera("IPcam", "http://192.168.2.123/snapshot.cgi?user=guest&pwd=yourpassword"));  // using a commercial ip camera
 
+  // set up the cameras from json file if it exists 
+    try {
+      camValues = loadJSONArray("cameras.json");   // load camera information from jason file
+      for (int i=0; i < camValues.size(); i++) {
+        JSONObject camData = camValues.getJSONObject(i); 
+        cameras.add(new camera(camData.getString("name"), camData.getString("url"), camData.getInt("maskx"), camData.getInt("masky"), camData.getInt("maskw"), camData.getInt("maskh")));
+      } 
+    } catch (Exception e) { 
+      println("Error reading JSON file");
+      // create camera objects without using JSON file here (name, URL to the jpg, image detection maskx, masky, maskw, maskh)
+        cameras.add(new camera("Front", "http://192.168.1.2/front.jpg"));                                     // url to access a jpg image
+        //cameras.add(new camera("Back", "http://192.168.1.23/cam.jpg"));                                     // second camera 
+        //cameras.add(new camera("ESP32", "http://192.168.2.19/jpg"));                                        // esp32cam using https://github.com/alanesq/esp32cam-demo
+        //cameras.add(new camera("IPcam", "http://192.168.2.123/snapshot.cgi?user=guest&pwd=yourpassword"));  // using a commercial ip camera  
+    }
+   
   // disable camera 3 and 4 (can be enabled by pressing keyboard key '4')
     if (cameras.size() > 3) cameras.get(3).enabled = false; 
     if (cameras.size() > 4) cameras.get(4).enabled = false; 
+    if (cameras.size() > 5) cameras.get(5).enabled = false; 
     
   if (messagesEnabled) _mainLeft+=messageWidth;     // if message box is enabled move camera images over
 
@@ -216,8 +249,9 @@ void refreshScreen() {
     // face detection
       if (faceDetectionEnabled) { tMes+= ", Face detection enabled(F)"; } else { tMes += ", Face detection disabled(F)"; };        
     // saving images to disk
-      if (saveImages) { 
-        tMes+= ", Image saving enabled(D)"; 
+      if (saveImages > 0) { 
+        if (saveImages == 1) tMes+= ", Image will be saved(D)"; 
+        if (saveImages == 2) tMes+= ", Two images will be saved(D)"; 
         // display image storage location
           stroke(sTextColor); fill(sTextColor); strokeWeight(1);
           textSize(sTextSize); 
@@ -240,25 +274,27 @@ void refreshScreen() {
 
 void compareImages() {
     // compare old and new camera images using OpenCV and display images
+      int posCount = -1;                                                             // position on screen (ignoring disabled cameras)
       for (int i = 0; i < cameras.size(); i++) {                                     // step through all cameras
         camera cam = cameras.get(i);
         if (!cam.enabled) continue;                                                  // skip camera if not enabled
         if (!cam.update()) continue;                                                 // refresh image (skip camera if there was an error)
+        posCount++;
         cam.image.resize(_imageWidth, _imageHeight);                                 // resize image
         opencv = new OpenCV(this, cam.image);                                        // load image in to OpenCV - NOTE: I suspect this is not the best way to do this but I can't find a better way to refresh the image
-        image(opencv.getOutput(), _mainLeft + _imageSpacing*i, _mainTop + _camTop);  // display image on screen 
+        image(opencv.getOutput(), _mainLeft + _imageSpacing * posCount, _mainTop + _camTop);  // display image on screen 
         faceDetect(i);                                                               // face detect 
         int mRes = motionDetect(i);                                                  // motion detect
        
         // display changes image 
           if (mRes != -1) {                                                          // -1 = problem with an image
               cam.grayDiff.resize(_changeWidth, _changeHeight);      // resize differences image for display
-              image(cam.grayDiff, _mainLeft + _changePad + _imageSpacing*i, _mainTop + _camTop + _imageHeight + 24, _changeWidth, _changeHeight);               // show differences image on screen
+              image(cam.grayDiff, _mainLeft + _changePad + _imageSpacing * posCount, _mainTop + _camTop + _imageHeight + 24, _changeWidth, _changeHeight);               // show differences image on screen
             // display image title
               stroke(sTextColor); fill(sTextColor); strokeWeight(1);
               if (cam.currentDetectionLevel >= motionImageTrigger) fill(128, 0, 128);  // change colour if above trigger level
-              String tMes = cam.cameraName + ": " + cam.currentDetectionLevel + "/" + cam.cumulativeDetectionLevel;
-              text(tMes, _mainLeft + (_imageSpacing * (i)) + ( int((_imageWidth - textWidth(tMes)) / 2) ), _mainTop + _camTop + _imageHeight + 18);
+              String tMes = cam.cameraName + "(" + (i+1) + ") " + cam.currentDetectionLevel + "/" + cam.cumulativeDetectionLevel;
+              text(tMes, _mainLeft + (_imageSpacing * (posCount)) + ( int((_imageWidth - textWidth(tMes)) / 2) ), _mainTop + _camTop + _imageHeight + 18);
           }   
       }   //for loop
 }   // compareImages
@@ -285,9 +321,8 @@ void faceDetect(int i) {
             rect( (_mainLeft + _imageSpacing*i) + faces[j].x, (_mainTop + _camTop) + faces[j].y, faces[j].width, faces[j].height);          
         }      
       message.add("Face on '" + cam.cameraName + "' at " + currentTime(":"));    // + " Size: " + faces[0].width + ", " + faces[0].height);
-      if (saveImages) {
-        cam.image.save( "images/" + currentTime("-") + "_" + cam.cameraName + "-2.jpg");         // save current image to disk
-      }
+      if (saveImages > 0) cam.image.save( "images/" + currentTime("-") + "_" + cam.cameraName + "-face.jpg");         // save current image to disk
+      if (saveImages > 1) cam.imageOld.save( "images/" + currentTime("-") + "_" + cam.cameraName + "-oldface.jpg");   // save old image to disk
       if (soundEnabled) {
           faceSound.rewind();
           faceSound.play();    
@@ -309,8 +344,9 @@ int motionDetect(int i) {
             movementSound.rewind();
             movementSound.play();    
         }              
-        if (saveImages) cam.image.save( "images/" + currentTime("-") + "_" + cam.cameraName + ".jpg");         // save current image to disk
-      }  
+        if (saveImages > 0) cam.image.save( "images/" + currentTime("-") + "_" + cam.cameraName + "-cur.jpg");        // save current image to disk
+        if (saveImages > 1) cam.imageOld.save( "images/" + currentTime("-") + "_" + cam.cameraName + "-old.jpg");     // save old image to disk 
+      }
       return mRes;
 }
 
@@ -365,7 +401,8 @@ void keyPressed() {
         }
       // toggle save images to disk
         if (key == 'd' || key == 'D') {
-          saveImages = !saveImages;     
+          saveImages++;     
+          if (saveImages > 2) saveImages = 0;
           logFile.println(currentTime(":") + " - save images changed to  " + saveImages);
         }
       // change trigger level
@@ -417,6 +454,8 @@ public class camera{
 
   private String iloc;                        // URL of image being monitored
   private String iExt = "jpg";                // type of image file
+  private int resizeW = 320;                  // size to make the captured image
+  private int resizeH = 240;
   public boolean enabled;                     // if this camera is enabled  
   public PImage image, imageOld, grayDiff;    // stores for camera images
   public String cameraName;                   // name of the camera
@@ -461,7 +500,7 @@ public class camera{
           iError = 1;
         }
         if (iError == 0) break;           // image has loaded ok so quit for loop
-        delay(200);                       // wait then try again
+        delay(300);                       // wait then try again
       }
       try {                               // test if image loaded ok
         if (image.width < 1) { iError = 2; }
@@ -472,6 +511,7 @@ public class camera{
         camError(iError);          
         return false;       
       }
+    image.resize(resizeW, resizeH);       // resize the image 
     return true;
   }   // update
   
