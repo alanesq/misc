@@ -1,5 +1,23 @@
 /*
     
+    
+    
+    
+    for latest version of this sketch see:   https://github.com/alanesq/imageChangeMonitor
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
               jpg image change monitor - 24Aug22 - created with https://processing.org/
               Monitors jpg images loaded via a URL and makes a sound if movement is detected
               
