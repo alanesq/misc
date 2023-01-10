@@ -24,7 +24,7 @@ void setup()
     s = new Server(this, 8080);        // start server on http-alt
     
     textSize(14);
-    text("Chris's server demo sketch v1.0", 60, 25);
+    text("Webserver demo sketch", 60, 25);
     text("trigger with: http://" + s.ip() + ":8080/?trigger1", 10, 70);
     text("     or: http://" + s.ip() + ":8080/?trigger2", 75, 90);
     
