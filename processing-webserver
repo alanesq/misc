@@ -1,6 +1,7 @@
 
-  // Receive data from client - 10Jan23
-  // trigger with       http://localhost:8080/?trigger1      or       http://localhost:8080/?trigger2
+  // processing sketch to trigger events upon HTTP requests received - 10Jan23
+  
+  // trigger with       http://localhost?trigger1      or       http://localhost?trigger2
   
   // ---------------------------------------------------------------------------------
   // original code from: https://processing.org/discourse/beta/num_1231628867.html
@@ -17,14 +18,16 @@ String input;
 void setup() 
 {
   // set up display window
-    size(300 , 200 );                // size of application window
+    size(350 , 200 );                // size of application window
     background(0);                   // black background
-    textSize(14);
-    text("WEB SERVER DEMO", 60, 25);
-    text("trigger with: http://localhost:8080/?trigger1", 10, 70);
-    text("or: http://localhost:8080/?trigger2", 75, 90);
     
-  s = new Server(this, 8080);        // start server on http-alt
+    s = new Server(this, 8080);        // start server on http-alt
+    
+    textSize(14);
+    text("Chris's server demo sketch v1.0", 60, 25);
+    text("trigger with: http://" + s.ip() + ":8080/?trigger1", 10, 70);
+    text("     or: http://" + s.ip() + ":8080/?trigger2", 75, 90);
+    
 }
 
 void draw() 
