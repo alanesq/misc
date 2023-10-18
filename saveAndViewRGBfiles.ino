@@ -8,8 +8,11 @@ the resulting image can be viewed by using:  https://rawpixels.net/
                                                   remove the tick on Litle Endian
 
                                   You can then right click on the image and select download to save it
+                                  
+                                  
+Notes: RGB888 does not seem to work, it just causes the esp32cam to restart
+       I have tried capturing an XGA image (1024x768) which works but takes a long time - the resulting image is 1.5mb
 
-Note: I have not managed to save a RGB888 file as it just causes the esp32cam to restart
 
 */
 
@@ -67,8 +70,10 @@ void setup() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.frame_size = FRAMESIZE_240X240;
-  //config.pixel_format = PIXFORMAT_JPEG; // for streaming
-  config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
+          //               160x120 (QQVGA), 128x160 (QQVGA2), 176x144 (QCIF), 240x176 (HQVGA), 240X240,
+          //               320x240 (QVGA), 400x296 (CIF), 640x480 (VGA, default), 800x600 (SVGA),
+          //               1024x768 (XGA), 1280x1024 (SXGA), 1600x1200 (UXGA)  
+  config.pixel_format = PIXFORMAT_RGB565; 
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 12;
