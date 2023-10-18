@@ -8,6 +8,9 @@ the resulting image can be viewed by using:  https://rawpixels.net/
                                                   remove the tick on Litle Endian
 
                                   You can then right click on the image and select download to save it
+
+Note: I have not managed to save a RGB888 file as it just causes the esp32cam to restart
+
 */
 
 #include "esp_camera.h"
