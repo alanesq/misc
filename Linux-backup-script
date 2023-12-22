@@ -1,0 +1,195 @@
+#!/bin/bash
+
+# -------------------------------------
+#
+#    backup computer - bash script 
+#
+#        Alan Blackham  11Nov23
+#
+# -------------------------------------
+
+# run this backup with:     sudo ./backup
+
+
+# bash info 
+#       https://devhints.io/bash
+#       https://ryanstutorials.net/bash-scripting-tutorial
+   
+# backing up with TAR info
+#       https://www.youtube.com/watch?v=KTayZIou-1M
+
+# restoring the tar files    	
+#       command:   tar xvpfz /backup/system.tgz -C /
+#       https://help.ubuntu.com/community/BackupYourSystem/TAR
+#       https://www.cyberciti.biz/hardware/howto-linux-hard-disk-encryption-with-luks-cryptsetup-command/
+
+# Tasks to do after a new build from backup files
+#       sudo chown powerguy /home/powerguy     and     sudo chown linda /home/linda
+#       edit /etc/hostname and /etc/hosts files
+#       # add "PATH=$PATH:/home/alan/misc/scripts/" to the end of   "/root/.bashrc"  
+#       restore xfce panel settings from backup
+
+
+#  ----------------------------------------------------------------
+
+
+#text colours
+    green="\e[32m"
+    red="\e[31m"
+    blue="\e[34m"
+    orange="\e[33m"
+    coloff="\e[0m"
+
+    
+  bfolder="./"                 # backup folder to use  (  ~. = home )
+
+
+#  ----------------------------------------------------------------
+
+
+# check this is being run as admin
+
+    if [[ $EUID -ne 0 ]]; then
+        echo -e "${red}Error: You must be an admin to do a backup ${coloff}"
+        exit 2
+    fi
+
+     	
+#  ----------------------------------------------------------------
+
+
+# clear disk space - see https://itsfoss.com/free-up-space-ubuntu-linux/
+  journalctl --vacuum-time=7d        # clear log files
+  apt-get clean                      # clear apt files
+  
+
+# ask what to backup
+
+        clear
+        echo "---------------------------------------------------------------------"
+	echo -e "${orange}   Backup this computer to '"$bfolder"' ${coloff}"
+        echo "---------------------------------------------------------------------"
+	echo 
+	echo "What do you want to back up?"
+	echo
+	echo "     w = Whole system"
+	echo
+	echo "     s = System files only"
+	echo
+	echo "     h = Home folders only"
+	echo
+	echo "     q = Quit"
+	echo
+	read ans
+	echo
+	
+	if [ $ans != "w" ] && [ $ans != "s" ] && [ $ans != "h" ] ; then 
+            echo -e "${red}Backup was cancelled ${coloff}"
+            exit 1     # stop
+        fi
+
+    
+#  ----------------------------------------------------------------
+   
+        
+# backup system files
+
+    if [ $ans = "w" -o $ans = "s" ]; then
+        echo -e "${blue}Backing up system files...${coloff}"
+    
+        # backup some config files 
+        cp /etc/fstab ${bfolder}
+        cp /etc/crypttab ${bfolder}
+        cp /etc/hostname ${bfolder}
+        cp /etc/hosts ${bfolder}
+
+        # record installed Linux version
+          #lsb_release -a > ${bfolder}Linux_version.txt
+          neofetch > ${bfolder}system_info.txt
+        
+        # note - tar command - c=create v=verbose p=permissions z=compress f=giving a filename		
+        #        It seems some versions of TAR require the --excludes before anything else some ok with it after?
+        tar \
+        --exclude="/root" \
+        --exclude="/backup" \
+        --exclude="/boot" \
+        --exclude="/proc" \
+        --exclude="/lost+found" \
+        --exclude="/tmp" \
+        --exclude="/mnt" \
+        --exclude="/dev" \
+        --exclude="/run" \
+        --exclude="/media" \
+        --exclude="/var/log" \
+        --exclude="/sys" \
+        --exclude="/home" \
+        --exclude="/cdrom" \
+        --exclude="/etc/fstab" \
+        --exclude="/etc/crypttab" \
+        --exclude="/run/user/1000/gvfs" \
+        --exclude="/var/cache/apt/archives" \
+        --exclude="/usr/src/linux-headers*" \
+        -cvpzf ${bfolder}${HOSTNAME}-system.tgz \
+        --one-file-system / 
+    fi
+
+
+#  ----------------------------------------------------------------
+
+
+# backup boot folder
+
+    if [ $ans = "w" -o $ans = "s" ]; then
+        echo -e "${blue}Backing up /BOOT files...${coloff}"
+        tar -cvpzf ${bfolder}${HOSTNAME}-boot.tgz /boot
+    fi
+
+
+#  ----------------------------------------------------------------
+
+
+# backup home folder
+# note - tar command - c=create v=verbose p=permissions z=compress f=giving a filename		
+#        It seems some versions of TAR require the --excludes before anything else some ok with it after?
+
+    if [ $ans = "w" -o $ans = "h" ]; then
+        echo -e "${blue}Backing up HOME folders...${coloff}"
+        tar \
+        --exclude="/home/*/gpt4all" \
+        --exclude="/home/*/temp" \
+        --exclude="/home/*/media" \
+        --exclude="/home/*/torrents" \
+        --exclude="/home/*/Downloads" \
+        --exclude="/home/*/VirtualBox VMs" \
+        --exclude="/home/*/.ollama" \
+        --exclude="/home/*/python" \
+        --exclude="/home/*/.cache" \
+        --exclude="/home/*/.gvfs" \
+        --exclude="/home/*/.thumbnails" \
+        --exclude="/home/*/.local/share/Trash" \
+        -cvpzf ${bfolder}${HOSTNAME}-home.tgz /home
+    fi
+
+
+#  ----------------------------------------------------------------
+
+
+# Backup complete
+
+  echo
+  echo -------------------------------------------------------------------
+  echo
+  echo -e "${green}Backup complete.... ${coloff}"
+  echo 
+  echo "To do a complete restore:"
+  echo "   Install clean Linux from usb drive (with compressed drive if required)"
+  echo "   Restore 'system' and 'home' with commands:   sudo tar xvpfz /backup/<filename>.tgz -C /"
+  echo "   Apply updates with:    sudo apt-get update && sudo apt-get upgrade" 
+  echo
+  echo -------------------------------------------------------------------
+  echo
+  chmod -R 777 "$bfolder"             # give rights to all users (may be a security risk)
+
+
+  exit 0    # stop
+
