@@ -80,7 +80,6 @@ void handleRoot() {
 
   // send standard html header
     sendHeader(client, "Root Page");
-    client.write("<FORM action='/' method='post'>\n");            // used by the buttons in the html (action = the web page to send it to
 
   // body of web page (put your html here)
     client.println("<h2>HELLO THERE!</h2>");
