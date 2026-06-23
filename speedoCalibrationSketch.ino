@@ -7,6 +7,10 @@
  Enter required RPM on serial console (150 to 3900)
  Pin 1 on motor is yellow
 
+ Note: Numbers below 150 will be interpreted as MPH which is used when calibrating a speedo from a classic car
+       which is what I bought this motor for.  For this to work your speedo needs to be 1600 times per mile which is
+       often shown on the dial (i.e. 30mph = 800rpm)
+
 
  see - https://www.reddit.com/r/Motors/comments/1ixdyp4/how_to_use_this_12_pin_variant_nidec_24h/
        https://www.youtube.com/watch?v=TdrySOXRl-Y
