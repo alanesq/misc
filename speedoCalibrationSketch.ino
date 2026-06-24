@@ -108,26 +108,26 @@ void loop() {
 
 int recNumFromSerial() {
   if (Serial.available() > 0) {
-    // Read until newline
-    String line = Serial.readStringUntil('\n');
+    String line = Serial.readStringUntil('\n');   // Read until newline
     line.trim();
     if (line.length() == 0) return 0;
     int value = line.toInt(); 
-    if (line == "0" || value != 0 || line == "0") {
+    if (line == "0" || value != 0) {
       Serial.print("Received: ");
       Serial.println(value);
       return value;
     } else {
       Serial.println("Invalid input. Send an integer like 1000");
+      return 0;
     }
   } 
-  return 0; 
 }
 
 
 // ******************************************************
 //                    Set motor by RPM
 // ******************************************************
+// Note: every 1000 adds 150rpm
 
 void setMotorRPM(int newrpm) {
   unsigned long newfrequency = (unsigned long)((float)newrpm / 150.0 * 1000.0);
@@ -160,8 +160,8 @@ void setMotorFrequency(unsigned long newfrequency) {
 // ******************************************************
 
 unsigned long convertRPMtoFrequency(int reqRPM) {
-  unsigned long freq = reqRPM / 150 * 1000;    // convert rpm to frequency
-  return freq;
+  unsigned long qFreq = (unsigned long)((float)reqRPM / 150.0 * 1000.0);
+  return qFreq;
 }
 
 
@@ -178,6 +178,7 @@ int convertFrequencyToRPM(unsigned long reqFrequency) {
 // ******************************************************
 //          convert RPM to MPH (speedo)
 // ******************************************************
+// for a classic car speedo which turns 1600 times per mile (30mph = 800rpm)
 
 int convertRPMToMPH(unsigned long freq) {
   int mph = (int)((float)freq / 26.6666);  
