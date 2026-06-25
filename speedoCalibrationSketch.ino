@@ -5,12 +5,21 @@
  - 25Jun26
 
 
- Notes: Pin 1 on motor is yellow
+ Notes: 
+ 
+       Pin 1 on motor is yellow
+
+       Draws max of 1 amp but almost nothing under low loads
 
        Enter required RPM on serial console (150 to 3900).
-       Numbers below 150 will be interpreted as MPH which is used when calibrating a speedo from a classic car
-       which is what I bought this motor for.  For this to work your speedo needs to be 1600 times per mile which is
-       often shown on the dial (i.e. 30mph = 800rpm)
+
+       Numbers between 0 and  150 will be interpreted as MPH which is used when calibrating a speedo from a classic car
+        which is what I bought this motor for.  For this to work your speedo needs to be 1600 times per mile which is
+        often shown on the dial (i.e. 30mph = 800rpm) 
+
+       negative numbers reverse motor direction
+
+       -1 = stop motor
 
 
 
@@ -46,9 +55,9 @@ Arduino pins used:
 const int pinPFM = 9;             // Motor pin 1 (Speed)
 const int pinEnable = 7;          // Motor pin 2 (Start/Stop)
 const int pinBrake = 6;           // Motor pin 3 (Brake)
-const int pinDirection = 5;       // Motor pin 4 (Direction)
+const int pinDirection = 5;       // Motor pin 4 (default direction)
 
-const int minVal = 1000;          // min value allowed (150rpm) - Note: may go down to 250?
+const int minVal = 1000;          // min value allowed (150rpm) 
 const int maxVal = 26000;         // max value allowed (3900rpm)
 const int startSpeed = 20000;     // startup motor rpm (should be high to get motor turning)
 const bool motorDirection = 0;    // mnotor direction
@@ -90,14 +99,22 @@ void setup() {
 void loop() {
 
   int qrpm = recNumFromSerial();       // receive input from Serial
-  if (qrpm > 0) {                      // if a number has been received
-    if (qrpm < 100) {
+  if (qrpm != -1) {                    // if a number has been received
+      // 0 = stop motor
+        if (qrpm == 0) digitalWrite(pinBrake, LOW);
+        else digitalWrite(pinBrake, HIGH);
+      // if rpm is negative reverse direction
+        if (qrpm > 0) digitalWrite(pinDirection, motorDirection);
+        else digitalWrite(pinDirection, !motorDirection);             
+        qrpm = abs(qrpm);     
+    if (qrpm < 150) {
       // input is MPH
+      digitalWrite(pinDirection, motorDirection);                   // set motor direction to default
       int mphRPM = (int)((float)qrpm * 26.6666);                    // convert MPH to required RPM
       Serial.println("Setting motor to " + String(qrpm) + "MPH which is an RPM of " + String(mphRPM));
       setMotorRPM(mphRPM);
     } else {
-      // input is RPM
+      // input is RPM 
       Serial.println ("MPH = " + String(convertRPMToMPH(qrpm)));    // for calibrating an Austin A35 speedo
       setMotorRPM(qrpm);
     }
@@ -110,12 +127,13 @@ void loop() {
 // ******************************************************
 //               Receive number from serial
 // ******************************************************
+// returns -1 if no number received
 
 int recNumFromSerial() {
   if (Serial.available() > 0) {
     String line = Serial.readStringUntil('\n');   // Read until newline
     line.trim();
-    if (line.length() == 0) return 0;
+    if (line.length() == 0) return -1;
     int value = line.toInt(); 
     if (line == "0" || value != 0) {
       Serial.print("Received: ");
@@ -123,9 +141,10 @@ int recNumFromSerial() {
       return value;
     } else {
       Serial.println("Invalid input. Send an integer like 1000");
-      return 0;
+      return -1;
     }
-  } 
+  }
+  return -1; 
 }
 
 
