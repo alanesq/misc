@@ -1,14 +1,18 @@
 /*
 
  Arduino sketch for Nidec 24H055M020 motor using PFM (Pulse Frequency Modulation)
- using Arduino UNO  (motor requires 5v logic I have read but not tested) - 23Jun26
+ using Arduino UNO  (motor requires 5v logic - I have read it does not work with 3.3v but not tested this myself)
+ - 25Jun26
 
- Enter required RPM on serial console (150 to 3900)
- Pin 1 on motor is yellow
 
- Note: Numbers below 150 will be interpreted as MPH which is used when calibrating a speedo from a classic car
+ Notes: Pin 1 on motor is yellow
+
+       Enter required RPM on serial console (150 to 3900).
+       Numbers below 150 will be interpreted as MPH which is used when calibrating a speedo from a classic car
        which is what I bought this motor for.  For this to work your speedo needs to be 1600 times per mile which is
        often shown on the dial (i.e. 30mph = 800rpm)
+
+
 
  see - https://www.reddit.com/r/Motors/comments/1ixdyp4/how_to_use_this_12_pin_variant_nidec_24h/
        https://www.youtube.com/watch?v=TdrySOXRl-Y
@@ -32,7 +36,7 @@ Arduino pins used:
         2       Enable          7   Digital Output.
         3       Brake           6   Digital Output.
         4       Direction       5   Digital Output.
-        9&10    GND             GND connect to motor and Arduino
+        9&10    GND             GND connect to 12v psu and Arduino
         11&12   +12V            External PSU
 
 
@@ -60,8 +64,9 @@ int rpm;
 // ******************************************************
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n\nSTARTING");
-
+  Serial.println("\n\n24H055M020 motor test sketch starting");
+  Serial.println("Enter required RPM (150 - 3900)\n");
+  
   pinMode(pinPFM, OUTPUT);
   pinMode(pinEnable, OUTPUT);
   pinMode(pinBrake, OUTPUT);
