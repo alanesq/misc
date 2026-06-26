@@ -2,7 +2,7 @@
 
  Arduino sketch for Nidec 24H055M020 motor using PFM (Pulse Frequency Modulation)
  using Arduino UNO  (motor requires 5v logic - I have read it does not work with 3.3v but not tested this myself)
- - 25Jun26
+ - 26Jun26
 
 
  Notes: 
@@ -73,8 +73,11 @@ int rpm;
 // ******************************************************
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n\n24H055M020 motor test sketch starting");
-  Serial.println("Enter required RPM (150 - 3900)\n");
+  Serial.println("\n\n24H055M020 motor test sketch\n");
+  Serial.println("Enter required RPM (150 - 3900)");
+  Serial.println("Negative numbers to reverse direction");
+  Serial.println("0 to 149 to enter as MPH (for speedo calibration)");
+  Serial.println("-1 to stop motor\n");
   
   pinMode(pinPFM, OUTPUT);
   pinMode(pinEnable, OUTPUT);
